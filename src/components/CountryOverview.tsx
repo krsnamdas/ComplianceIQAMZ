@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Country, ScraperStatus } from '../types/regulatory';
 import { useAdmin } from '../context/AdminContext';
+import { useRBAC } from '../context/RBACContext';
 import { MOCK_REGULATORY_UPDATES } from '../data/menatData';
 import {
   Shield,
@@ -54,7 +55,9 @@ export const CountryOverview: React.FC<CountryOverviewProps> = ({
   isScraping,
   onTriggerScrape,
 }) => {
-  const { isAuthenticated } = useAdmin();
+  const { isAuthenticated, isCurrentUserAdmin, isAdminUnlocked } = useAdmin();
+  const { isAdmin } = useRBAC();
+  const isSuperAdmin = isAuthenticated && (isAdmin || isCurrentUserAdmin || isAdminUnlocked);
   const [activeRegion, setActiveRegion] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -159,78 +162,83 @@ export const CountryOverview: React.FC<CountryOverviewProps> = ({
       </section>
 
       {/* ========================================================================= */}
-      {/* 1.5. AUTOMATED WEEKLY SCRAPER & SOVEREIGN LINK AUDIT STATUS */}
+      {/* 1.5. AUTOMATED WEEKLY SCRAPER & SOVEREIGN LINK AUDIT STATUS (ADMIN ONLY) */}
       {/* ========================================================================= */}
-      <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">
-                Automated Regulatory Scraper &amp; Link Audit Daemon
-              </span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-                Weekly Periodic Run
-              </span>
+      {isSuperAdmin && (
+        <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center space-x-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">
+                  Automated Regulatory Scraper &amp; Link Audit Daemon
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                  Weekly Periodic Run
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                  Admin Privileged View
+                </span>
+              </div>
+
+              <div className="text-sm font-semibold text-white flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span>
+                  Last Scraped:{' '}
+                  <strong className="text-cyan-300 font-mono">
+                    {scraperStatus?.lastRegulationsScrapeTime
+                      ? new Date(scraperStatus.lastRegulationsScrapeTime).toLocaleString(undefined, {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })
+                      : scraperStatus?.lastRunTimestamp
+                      ? new Date(scraperStatus.lastRunTimestamp).toLocaleString(undefined, {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })
+                      : 'Sep 22, 2026, 04:17 AM UTC'}
+                  </strong>
+                </span>
+                <span className="text-slate-600 hidden sm:inline">•</span>
+                <span className="text-slate-300 text-xs">
+                  Frequency: <span className="text-emerald-400 font-medium">Once a Week Automatically</span>
+                </span>
+                <span className="text-slate-600 hidden sm:inline">•</span>
+                <span className="text-slate-300 text-xs">
+                  HTTP Reachability Daemon: <span className="text-teal-400 font-medium">Every 12h (PDFs &amp; URLs)</span>
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-400 max-w-3xl leading-relaxed">
+                When new regulations are registered, their official portals and PDF gazettes are automatically enqueued into our weekly crawling roster. Link integrity is verified with zero-tolerance for broken endpoints.
+              </p>
             </div>
 
-            <div className="text-sm font-semibold text-white flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span>
-                Last Scraped:{' '}
-                <strong className="text-cyan-300 font-mono">
-                  {scraperStatus?.lastRegulationsScrapeTime
-                    ? new Date(scraperStatus.lastRegulationsScrapeTime).toLocaleString(undefined, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })
-                    : scraperStatus?.lastRunTimestamp
-                    ? new Date(scraperStatus.lastRunTimestamp).toLocaleString(undefined, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })
-                    : 'Sep 22, 2026, 04:17 AM UTC'}
-                </strong>
-              </span>
-              <span className="text-slate-600 hidden sm:inline">•</span>
-              <span className="text-slate-300 text-xs">
-                Frequency: <span className="text-emerald-400 font-medium">Once a Week Automatically</span>
-              </span>
-              <span className="text-slate-600 hidden sm:inline">•</span>
-              <span className="text-slate-300 text-xs">
-                HTTP Reachability Daemon: <span className="text-teal-400 font-medium">Every 12h (PDFs &amp; URLs)</span>
-              </span>
-            </div>
+            <div className="flex items-center space-x-2.5 shrink-0">
+              {onTriggerScrape && (
+                <button
+                  type="button"
+                  onClick={onTriggerScrape}
+                  disabled={isScraping}
+                  className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 hover:border-emerald-500/40 flex items-center space-x-2 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                  title="Execute immediate manual scraper probe across all 24 MENAT jurisdiction portals"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isScraping ? 'animate-spin text-emerald-400' : 'text-emerald-400'}`} />
+                  <span>{isScraping ? 'Scraping Sovereign Portals...' : 'Manual Scrape Upon Prompt'}</span>
+                </button>
+              )}
 
-            <p className="text-xs text-slate-400 max-w-3xl leading-relaxed">
-              When new regulations are registered, their official portals and PDF gazettes are automatically enqueued into our weekly crawling roster. Link integrity is verified with zero-tolerance for broken endpoints.
-            </p>
-          </div>
-
-          <div className="flex items-center space-x-2.5 shrink-0">
-            {onTriggerScrape && (
               <button
                 type="button"
-                onClick={onTriggerScrape}
-                disabled={isScraping}
-                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 hover:border-emerald-500/40 flex items-center space-x-2 transition-all shadow-sm cursor-pointer disabled:opacity-50"
-                title="Execute immediate manual scraper probe across all 24 MENAT jurisdiction portals"
+                onClick={() => onNavigateTab ? onNavigateTab('regulations') : onViewRegulations('all')}
+                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white flex items-center space-x-1.5 transition-all shadow-md cursor-pointer"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isScraping ? 'animate-spin text-emerald-400' : 'text-emerald-400'}`} />
-                <span>{isScraping ? 'Scraping Sovereign Portals...' : 'Manual Scrape Upon Prompt'}</span>
+                <span>Explore Registry</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => onNavigateTab ? onNavigateTab('regulations') : onViewRegulations('all')}
-              className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white flex items-center space-x-1.5 transition-all shadow-md cursor-pointer"
-            >
-              <span>Explore Registry</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ========================================================================= */}
       {/* 2. EXECUTIVE INSIGHTS */}
