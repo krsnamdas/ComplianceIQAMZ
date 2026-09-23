@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Regulation, SectorType } from '../types/regulatory';
 import { MENAT_COUNTRIES } from '../data/menatData';
+import { analyzeControlMandate } from '../utils/mandateConfidence';
 import {
   Download,
   Search,
@@ -150,16 +151,19 @@ export const ControlsCrosswalk: React.FC<ControlsCrosswalkProps> = ({
       {/* Top Banner */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center space-x-2">
-            <h2 className="text-xl font-bold text-white tracking-tight">
-              Controls Crosswalk & Global Standards Mapping
-            </h2>
+          <div className="flex items-center space-x-2 mb-1">
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 uppercase">
+              Crosswalk Engine
+            </span>
             <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/30">
               {filteredControls.length} Controls Cataloged
             </span>
           </div>
-          <p className="text-sm text-slate-400 mt-1">
-            Exact clause references mapped against NIST CSF 2.0, ISO/IEC 27001:2022, and Cloud Controls Matrix (CCM v4).
+          <h2 className="text-xl font-bold text-white tracking-tight">
+            Controls Crosswalk &amp; Global Standards Mapping
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-3xl leading-relaxed">
+            Cross-references statutory articles across all 24 sovereign MENAT nations directly to global security frameworks (NIST CSF 2.0, ISO/IEC 27001:2022, CIS Controls v8, and CSA Cloud Controls Matrix). Use this tool to eliminate duplicative compliance audits, map existing technical controls to local laws, and export harmonized evidence workpapers.
           </p>
         </div>
 
@@ -277,6 +281,26 @@ export const ControlsCrosswalk: React.FC<ControlsCrosswalkProps> = ({
                   {ctrl.code}
                 </span>
                 <span className="font-bold text-sm text-white">{ctrl.title}</span>
+                {(() => {
+                  const mandate = analyzeControlMandate(ctrl);
+                  return (
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold border flex items-center space-x-1 shrink-0 ${
+                        mandate.level === 'Mandatory'
+                          ? 'bg-rose-500/15 text-rose-300 border-rose-500/40'
+                          : mandate.level === 'Conditional'
+                          ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                          : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40'
+                      }`}
+                      title={mandate.rationale}
+                    >
+                      <span>{mandate.level}</span>
+                      <span className="font-mono opacity-90 font-medium">
+                        ({mandate.confidenceScore}% confident [{mandate.confidenceInterval}])
+                      </span>
+                    </span>
+                  );
+                })()}
               </div>
 
               <div className="flex items-center space-x-2">

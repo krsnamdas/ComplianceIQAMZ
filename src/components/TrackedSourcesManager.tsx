@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Country, ScrapedSource } from '../types/regulatory';
+import { Country, ScrapedSource, ScraperStatus } from '../types/regulatory';
 import { useRBAC } from '../context/RBACContext';
 import {
   Globe2,
@@ -31,6 +31,7 @@ interface TrackedSourcesManagerProps {
   onSelectCountryFilter?: (countryId: string) => void;
   onTriggerScrape: () => void;
   isScraping: boolean;
+  scraperStatus?: ScraperStatus;
 }
 
 export const TrackedSourcesManager: React.FC<TrackedSourcesManagerProps> = ({
@@ -41,6 +42,7 @@ export const TrackedSourcesManager: React.FC<TrackedSourcesManagerProps> = ({
   onSelectCountryFilter,
   onTriggerScrape,
   isScraping,
+  scraperStatus,
 }) => {
   const { canTriggerScraper, triggerRestrictedAction, setRole } = useRBAC();
   const [searchQuery, setSearchQuery] = useState('');
@@ -253,7 +255,24 @@ export const TrackedSourcesManager: React.FC<TrackedSourcesManagerProps> = ({
             <div className="flex flex-wrap items-center gap-3 mt-3 text-xs">
               <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
                 <Clock className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
-                Automated Schedule: <strong className="ml-1 text-white">Every 48 Hours (2 Days)</strong>
+                Automated Schedule: <strong className="ml-1 text-white">Once a Week (Weekly Periodic Run)</strong>
+              </span>
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+                <Clock className="w-3.5 h-3.5 mr-1.5 text-cyan-400" />
+                Last Scraped:{' '}
+                <strong className="ml-1 text-cyan-300 font-mono">
+                  {scraperStatus?.lastRegulationsScrapeTime
+                    ? new Date(scraperStatus.lastRegulationsScrapeTime).toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })
+                    : scraperStatus?.lastRunTimestamp
+                    ? new Date(scraperStatus.lastRunTimestamp).toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })
+                    : 'Sep 22, 2026, 04:17 AM UTC'}
+                </strong>
               </span>
               <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
                 <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />

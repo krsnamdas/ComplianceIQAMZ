@@ -112,7 +112,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
       'Conduct third-party red teaming simulation on external perimeter',
     ],
     officialReference: 'UAE CSC Executive Order on National Information Assurance Reporting',
-    officialUrl: 'https://www.cybersecurity.gov.ae/',
+    officialUrl: 'https://csc.gov.ae/',
   },
   {
     id: 'evt-morocco-0908-consultation',
@@ -185,7 +185,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
       'Implement data subject rights request mechanism (access, erasure, rectification)',
     ],
     officialReference: 'Official Gazette No. 5881, Law No. 24 of 2023',
-    officialUrl: 'https://modee.gov.jo/',
+    officialUrl: 'https://www.modee.gov.jo/',
   },
   {
     id: 'evt-tunisia-bct-continuity-simulation',
@@ -406,7 +406,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
       'Provide audited cryptographic proof-of-reserves with Merkle tree verification',
     ],
     officialReference: 'CBB Rulebook Volume 6 (Capital Markets), Module CRA',
-    officialUrl: 'https://rulebook.cbb.gov.bh/',
+    officialUrl: 'https://www.cbb.gov.bh/laws-regulations/',
   },
   {
     id: 'evt-ksa-nca-ecc-annual-mandate',
@@ -442,7 +442,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
       'Ensure all business data backup archives are stored in air-gapped immutable media within KSA',
     ],
     officialReference: 'NCA ECC-1:2018 Compliance Directives',
-    officialUrl: 'https://nca.gov.sa/en/regulations-and-standards/ecc/',
+    officialUrl: 'https://www.nca.gov.sa//regulations-and-standards/ecc/',
   },
   {
     id: 'evt-bahrain-cbb-pqc-inventory',
@@ -479,7 +479,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
       'Establish architectural plan for migrating to NIST-standardized algorithms (ML-KEM, ML-DSA)',
     ],
     officialReference: 'CBB Circular on Cryptographic Modernization and Post-Quantum Security',
-    officialUrl: 'https://rulebook.cbb.gov.bh/',
+    officialUrl: 'https://www.cbb.gov.bh/laws-regulations/',
   },
   {
     id: 'evt-ksa-sdaia-ai-ethics-deadline',
@@ -516,7 +516,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
       'Verify that training datasets do not violate KSA PDPL cross-border transfer restrictions',
     ],
     officialReference: 'SDAIA AI Ethics Principles Document v1.1',
-    officialUrl: 'https://dgp.sdaia.gov.sa/wps/portal/pdp/knowledgecenter',
+    officialUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/ai-ethics-principles-en.pdf',
     versionDiffId: 'diff-ksa-pdpl',
   },
   {
@@ -554,7 +554,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
       'Establish data breach notification protocol (maximum 72 hours to MTCIT)',
     ],
     officialReference: 'MTCIT Ministerial Decision No. 34/2024 on Executive Regulations',
-    officialUrl: 'https://mtcit.gov.om/',
+    officialUrl: 'https://www.mtcit.gov.om/',
   },
   {
     id: 'evt-kuwait-cbk-zero-trust-deadline',
@@ -625,7 +625,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
       'Submit independent auditor attestation signed by certified lead cybersecurity auditor',
     ],
     officialReference: 'Presidential Circular 2019/12 and CBDFO BIG Audit Guide',
-    officialUrl: 'https://cbiko.gov.tr/',
+    officialUrl: 'https://www.cbddo.gov.tr/',
   },
   {
     id: 'evt-uae-cbuae-open-finance-enforcement',
@@ -772,7 +772,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
       'Provide zero-data-loss synchronous replication across Kuwait availability zones',
     ],
     officialReference: 'CITRA Resolution No. 112/2025 on Cloud Service Provider Licensing',
-    officialUrl: 'https://citra.gov.kw/',
+    officialUrl: 'https://www.citra.gov.kw/',
   },
   {
     id: 'evt-uae-ai-autonomous-systems-code',
@@ -878,7 +878,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
       'Ensure complete physical and logical isolation from public telecommunications routing',
     ],
     officialReference: 'NCA OTCC-1:2022 Technical Annex on Distributed Energy Resources',
-    officialUrl: 'https://nca.gov.sa/en/regulations-and-standards/otcc/',
+    officialUrl: 'https://www.nca.gov.sa//regulations-and-standards/otcc/',
   },
 
   // --- HISTORICAL CHANGE EVENTS (2021 - 2025) ---
@@ -918,7 +918,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
       'Updated Record of Processing Activities (RoPA) reflecting legitimate interests',
     ],
     officialReference: 'Royal Decree M/148 & SDAIA Executive Regulations',
-    officialUrl: 'https://dgp.sdaia.gov.sa/wps/portal/pdp/knowledgecenter/details/PDPL',
+    officialUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/Personal%20Data%20English%20V2-23April2023-%20Reviewed-.pdf',
     versionDiffId: 'diff-ksa-pdpl',
   },
   {
@@ -1066,6 +1066,6 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
       'Implement unidirectional security gateways (data diodes) for plant historian replication',
     ],
     officialReference: 'NCA OTCC-1:2022 Controls Baseline',
-    officialUrl: 'https://nca.gov.sa/en/regulations-and-standards/otcc/',
+    officialUrl: 'https://www.nca.gov.sa//regulations-and-standards/otcc/',
   },
 ];

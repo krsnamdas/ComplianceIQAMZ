@@ -24,7 +24,7 @@ interface UserAccountSwitcherProps {
 export const UserAccountSwitcher: React.FC<UserAccountSwitcherProps> = ({
   onOpenAdminPanel,
 }) => {
-  const { currentUser, isCurrentUserAdmin, users, switchUser, loginWithCredentials } = useAdmin();
+  const { currentUser, isCurrentUserAdmin, users, switchUser, loginWithCredentials, logout, isAuthenticated } = useAdmin();
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'roster' | 'login'>('roster');
   const [usernameInput, setUsernameInput] = useState('');
@@ -397,6 +397,21 @@ export const UserAccountSwitcher: React.FC<UserAccountSwitcherProps> = ({
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Sign Out Option */}
+              <div className="p-3 pt-2 border-t border-slate-800 bg-slate-950/40">
+                <button
+                  type="button"
+                  onClick={() => {
+                    logout();
+                    setIsOpen(false);
+                  }}
+                  className="w-full py-2 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Sign Out (Return to Guest Mode)</span>
+                </button>
               </div>
             </>
           )}

@@ -166,11 +166,17 @@ export const SectorMatrix: React.FC<SectorMatrixProps> = ({ regulations, onSelec
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
+            <div className="flex items-center space-x-2 mb-1">
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 uppercase">
+                Cross-Sector Matrix
+              </span>
+              <span className="text-xs text-slate-400 font-mono">18 Regulated Verticals</span>
+            </div>
             <h2 className="text-xl font-bold text-white tracking-tight">
-              Sector-Wise Compliance Applicability & Regulatory Velocity Matrix
+              Sector-Wise Compliance Applicability &amp; Regulatory Velocity Matrix
             </h2>
-            <p className="text-sm text-slate-400 mt-1">
-              Explore governing cybersecurity, data sovereignty, AI, and operational resilience mandates cross-indexed by industry sector with 12-month trend analysis.
+            <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-3xl leading-relaxed">
+              Maps sovereign cybersecurity, data protection, AI, and operational resilience laws across 18 critical industries (such as Banking &amp; FinTech, Critical Infrastructure, Cloud &amp; Hyperscalers, Healthcare, and Oil &amp; Gas). Select any sector below to view specific statutory concerns, 12-month regulatory velocity, and all applicable sovereign acts.
             </p>
           </div>
           <div className="flex items-center space-x-2 text-xs text-slate-400 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 shrink-0">

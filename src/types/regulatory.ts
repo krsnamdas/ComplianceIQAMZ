@@ -46,9 +46,39 @@ export interface ControlDetail {
   title: string;
   description: string;
   clauseReference: string;
-  mandatoryLevel: 'Mandatory' | 'Recommended' | 'Conditional';
+  mandatoryLevel: 'Mandatory' | 'Recommended' | 'Conditional' | 'Guideline';
+  mandatoryConfidence?: number; // e.g. 95 for 95% confident
+  confidenceInterval?: string; // e.g. "90% - 98%"
+  confidenceRationale?: string;
   applicableSectors: SectorType[];
   mapping: StandardMapping;
+}
+
+export interface RequirementConfidenceResult {
+  id: string;
+  code: string;
+  label: 'Mandatory' | 'Guideline' | 'Conditional' | 'Recommended';
+  confidenceScore: number; // e.g. 96 for 96%
+  confidenceInterval: string; // e.g. "93% - 98%"
+  rationale: string;
+  statutoryKeyword?: string;
+  enforcementType?: string;
+  isGeminiExtracted?: boolean;
+}
+
+export interface RegulationRequirementsAnalysis {
+  regulationId: string;
+  regulationCode: string;
+  overallMandate: {
+    label: 'Mandatory' | 'Guideline' | 'Conditional Mandate';
+    confidenceScore: number;
+    confidenceInterval: string;
+    rationale: string;
+  };
+  requirements: RequirementConfidenceResult[];
+  modelUsed: string;
+  timestamp: string;
+  isLiveGemini: boolean;
 }
 
 export interface VersionHistoryItem {
@@ -97,6 +127,12 @@ export interface Regulation {
   category: RegulatoryCategory;
   categoryLabel: string;
   isTech: boolean;
+  regulatoryMandate?: {
+    type: 'Mandatory' | 'Guideline' | 'Conditional Mandate';
+    confidenceScore: number; // e.g. 96 for 96%
+    confidenceInterval: string; // e.g. "92% - 98%"
+    rationale: string; // e.g. "Enacted via Royal Decree with statutory financial penalties"
+  };
   status: 'Enacted' | 'Amended' | 'Draft / Public Consultation';
   currentVersion?: string;
   createdDate?: string;
@@ -196,6 +232,15 @@ export interface ScraperStatus {
   totalSourcesMonitored: number;
   sourcesOnline: number;
   recentLogs: ScraperLog[];
+  lastRegulationsScrapeTime?: string;
+  linksAuditStatus?: {
+    lastAuditTimestamp: string;
+    totalAudited: number;
+    healthy: number;
+    broken: number;
+    redirects: number;
+    wafProtected: number;
+  };
 }
 
 export interface TimelineMilestone {

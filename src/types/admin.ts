@@ -1,6 +1,6 @@
 import { Regulation, SectorType, RegulatoryCategory } from './regulatory';
 
-export type UserRoleType = 'admin' | 'compliance_officer' | 'risk_analyst' | 'auditor';
+export type UserRoleType = 'admin' | 'compliance_officer' | 'risk_analyst' | 'auditor' | 'guest';
 
 export interface UserProfile {
   id: string;
@@ -84,7 +84,9 @@ export interface AuditLogEntry {
     | 'BROADCAST_UPDATED'
     | 'BACKUP_EXPORTED'
     | 'BACKUP_RESTORED'
-    | 'REGULATIONS_RESET';
+    | 'REGULATIONS_RESET'
+    | 'SCRAPER_SOURCE_ADDED'
+    | 'LINK_AUDIT_TRIGGERED';
   targetEntity: string;
   details: string;
 }

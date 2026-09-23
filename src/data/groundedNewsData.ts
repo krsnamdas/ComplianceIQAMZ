@@ -43,7 +43,7 @@ export const INITIAL_GROUNDED_NEWS: GroundedNewsItem[] = [
     publishedAt: '2026-03-17T14:15:00Z',
     timeAgo: 'Yesterday',
     sourceName: 'Emirates News Agency (WAM)',
-    sourceUrl: 'https://centralbank.ae',
+    sourceUrl: 'https://www.centralbank.ae/en/',
     searchGroundingQuery: 'CBUAE Open Finance regulatory framework API security 2026',
     tags: ['OpenBanking', 'FAPI', 'PaymentServices', 'ZeroTrustAPI'],
     keyObligations: [
@@ -69,7 +69,7 @@ export const INITIAL_GROUNDED_NEWS: GroundedNewsItem[] = [
     publishedAt: '2026-03-16T11:00:00Z',
     timeAgo: '2 days ago',
     sourceName: 'NCA National Cybersecurity Portal',
-    sourceUrl: 'https://nca.gov.sa',
+    sourceUrl: 'https://www.nca.gov.sa/',
     searchGroundingQuery: 'NCA OT industrial control systems cybersecurity directive KSA',
     tags: ['SCADA', 'AirGap', 'CriticalInfrastructure', 'IndustrialOT'],
     keyObligations: [
@@ -121,7 +121,7 @@ export const INITIAL_GROUNDED_NEWS: GroundedNewsItem[] = [
     publishedAt: '2026-03-14T13:20:00Z',
     timeAgo: '4 days ago',
     sourceName: 'The Peninsula Qatar',
-    sourceUrl: 'https://qcb.gov.qa',
+    sourceUrl: 'https://www.qcb.gov.qa/en/Pages/default.aspx',
     searchGroundingQuery: 'Qatar Central Bank QCB digital assets fintech sandbox guidelines',
     tags: ['Sandbox', 'Tokenization', 'AML', 'CrossBorderSettlement'],
     keyObligations: [
@@ -147,7 +147,7 @@ export const INITIAL_GROUNDED_NEWS: GroundedNewsItem[] = [
     publishedAt: '2026-03-13T10:15:00Z',
     timeAgo: '5 days ago',
     sourceName: 'Anadolu Agency',
-    sourceUrl: 'https://btk.gov.tr',
+    sourceUrl: 'https://www.btk.gov.tr/en/',
     searchGroundingQuery: 'BTK Turkey post-quantum cryptography telecom guidelines',
     tags: ['PostQuantum', 'PQC', 'TelecomBackbone', 'NISTStandards'],
     keyObligations: [
@@ -173,7 +173,7 @@ export const INITIAL_GROUNDED_NEWS: GroundedNewsItem[] = [
     publishedAt: '2026-03-12T16:00:00Z',
     timeAgo: '6 days ago',
     sourceName: 'Egypt Today',
-    sourceUrl: 'https://mcit.gov.eg',
+    sourceUrl: 'https://mcit.gov.eg/en/Regulations_and_Policies/Laws',
     searchGroundingQuery: 'Egypt Data Protection Law 151 cross-border transfer permit guidelines',
     tags: ['DataPrivacy', 'CrossBorder', 'DPO', 'Law151'],
     keyObligations: [
@@ -199,7 +199,7 @@ export const INITIAL_GROUNDED_NEWS: GroundedNewsItem[] = [
     publishedAt: '2026-03-10T09:00:00Z',
     timeAgo: '1 week ago',
     sourceName: 'Oman News Agency (ONA)',
-    sourceUrl: 'https://tra.gov.om',
+    sourceUrl: 'https://www.tra.gov.om/',
     searchGroundingQuery: 'Oman TRA satellite internet cybersecurity regulations 2026',
     tags: ['SatelliteInternet', 'LEO', 'TelecomLicensing', 'NationalSovereignty'],
     keyObligations: [
@@ -225,7 +225,7 @@ export const INITIAL_GROUNDED_NEWS: GroundedNewsItem[] = [
     publishedAt: '2026-03-08T11:45:00Z',
     timeAgo: '1 week ago',
     sourceName: 'Bahrain News Agency (BNA)',
-    sourceUrl: 'https://cbb.gov.bh',
+    sourceUrl: 'https://www.cbb.gov.bh/',
     searchGroundingQuery: 'Central Bank of Bahrain CBB AI governance credit scoring circular',
     tags: ['AIGovernance', 'FinTech', 'CreditScoring', 'ExplainableAI'],
     keyObligations: [

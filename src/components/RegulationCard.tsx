@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { Regulation } from '../types/regulatory';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Regulation, RegulationRequirementsAnalysis, RequirementConfidenceResult } from '../types/regulatory';
 import { useRBAC } from '../context/RBACContext';
+import { useAdmin } from '../context/AdminContext';
 import { SmartInsightCard } from './SmartInsightCard';
 import { calculateUrgencyScore } from '../utils/urgencyScore';
+import { analyzeRegulationMandate, analyzeControlMandate } from '../utils/mandateConfidence';
+import { ConfidenceLevelLegendModal } from './ConfidenceLevelLegendModal';
 import {
   ExternalLink,
   FileText,
@@ -10,7 +13,9 @@ import {
   ChevronUp,
   Layers,
   CheckCircle2,
+  AlertTriangle,
   Shield,
+  ShieldCheck,
   Cpu,
   Database,
   Cloud,
@@ -30,12 +35,15 @@ import {
   Info,
   Sparkles,
   PenTool,
+  BookOpen,
+  Filter,
 } from 'lucide-react';
 
 interface RegulationCardProps {
   regulation: Regulation;
   countryName: string;
   countryFlag: string;
+  minConfidenceFilter?: number;
   onViewDiff?: (diffId: string) => void;
   isPinned?: boolean;
   onTogglePin?: (regulationId: string) => void;
@@ -49,6 +57,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
   regulation,
   countryName,
   countryFlag,
+  minConfidenceFilter = 0,
   onViewDiff,
   isPinned = false,
   onTogglePin,
@@ -58,9 +67,85 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
   onRedlinePolicy,
 }) => {
   const { canManageWatchlist } = useRBAC();
+  const { getLinkAudit } = useAdmin();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showUrgencyBreakdown, setShowUrgencyBreakdown] = useState(false);
+  const [showConfidenceExplainer, setShowConfidenceExplainer] = useState(false);
+  const [showLegendModal, setShowLegendModal] = useState(false);
+
+  // Backend Gemini Requirement Confidence Analysis State
+  const [aiAnalysis, setAiAnalysis] = useState<RegulationRequirementsAnalysis | null>(null);
+  const [isLoadingConfidence, setIsLoadingConfidence] = useState(false);
+
+  // Fetch requirement confidence extracted and analyzed by the backend Gemini service
+  const fetchRequirementConfidence = async (force = false) => {
+    try {
+      setIsLoadingConfidence(true);
+      const res = await fetch('/api/ai/analyze-requirements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          regulationId: regulation.id,
+          regulationCode: regulation.code,
+          regulationName: regulation.name,
+          authority: regulation.authority,
+          countryName,
+          scopeSummary: regulation.scopeSummary,
+          requirements: regulation.sampleControls,
+          forceRefresh: force,
+        }),
+      });
+      if (res.ok) {
+        const data: RegulationRequirementsAnalysis = await res.json();
+        setAiAnalysis(data);
+      }
+    } catch (err) {
+      console.warn('[Requirement Confidence fetch error]', err);
+    } finally {
+      setIsLoadingConfidence(false);
+    }
+  };
+
+  // Load confidence analysis on initial mount or when card expands
+  useEffect(() => {
+    if (isExpanded && !aiAnalysis && !isLoadingConfidence) {
+      fetchRequirementConfidence(false);
+    }
+  }, [isExpanded]);
+
+  // Helper to extract requirement confidence for a specific granular control/requirement
+  const getRequirementConfidence = (ctrl: any): RequirementConfidenceResult => {
+    if (aiAnalysis?.requirements) {
+      const found = aiAnalysis.requirements.find(
+        (r) => r.id === ctrl.id || r.code.toLowerCase() === ctrl.code.toLowerCase()
+      );
+      if (found) {
+        return found;
+      }
+    }
+    const fallback = analyzeControlMandate(ctrl);
+    return {
+      id: ctrl.id,
+      code: ctrl.code,
+      label: fallback.level,
+      confidenceScore: fallback.confidenceScore,
+      confidenceInterval: fallback.confidenceInterval,
+      rationale: fallback.rationale,
+      statutoryKeyword: fallback.level === 'Mandatory' ? 'shall / must implement' : 'should / recommended',
+      enforcementType: fallback.level === 'Mandatory' ? 'Primary Statutory Obligation' : 'Supervisory Guideline',
+      isGeminiExtracted: false,
+    };
+  };
+
+  const displayedControls = useMemo(() => {
+    if (!regulation.sampleControls) return [];
+    if (!minConfidenceFilter || minConfidenceFilter <= 0) return regulation.sampleControls;
+    return regulation.sampleControls.filter((ctrl) => {
+      const reqConf = getRequirementConfidence(ctrl);
+      return reqConf.confidenceScore >= minConfidenceFilter;
+    });
+  }, [regulation.sampleControls, minConfidenceFilter, aiAnalysis]);
 
   const urgency = calculateUrgencyScore(regulation);
 
@@ -193,8 +278,117 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
             <span className="px-2 py-0.5 text-[11px] font-medium rounded bg-slate-800 text-slate-300 border border-slate-700">
               {regulation.status} ({regulation.yearEnacted})
             </span>
+
+            {/* Compliance Requirement Confidence Visual Badge (Extracted & Analyzed by Gemini) */}
+            {(() => {
+              const mandate = aiAnalysis?.overallMandate || analyzeRegulationMandate(regulation);
+              const label = aiAnalysis?.overallMandate ? aiAnalysis.overallMandate.label : (mandate as any).type;
+              const isMandatory = label === 'Mandatory';
+              const isConditional = label === 'Conditional' || label === 'Conditional Mandate';
+
+              return (
+                <button
+                  type="button"
+                  onClick={() => setShowConfidenceExplainer(!showConfidenceExplainer)}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg border flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer ${
+                    isMandatory
+                      ? 'bg-rose-500/15 text-rose-300 border-rose-500/40 hover:bg-rose-500/25'
+                      : isConditional
+                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25'
+                      : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/25'
+                  }`}
+                  title="Click to inspect Gemini-analyzed Compliance Requirement Confidence breakdown"
+                >
+                  <Scale className="w-3.5 h-3.5 shrink-0" />
+                  <span className="text-[10px] uppercase font-semibold text-slate-400">
+                    Compliance Requirement Confidence:
+                  </span>
+                  <span className="font-extrabold uppercase">{label}</span>
+                  <span className="font-mono text-[11px] font-bold bg-black/30 px-1.5 py-0.2 rounded text-white">
+                    {mandate.confidenceScore}%
+                  </span>
+                  <span className="font-mono text-[10px] opacity-75 hidden sm:inline">
+                    [{mandate.confidenceInterval}]
+                  </span>
+                  {aiAnalysis?.isLiveGemini && (
+                    <span title="Extracted and analyzed by Gemini 3.8 Flash">
+                      <Sparkles className="w-3 h-3 text-cyan-300" />
+                    </span>
+                  )}
+                </button>
+              );
+            })()}
           </div>
         </div>
+
+        {/* Compliance Requirement Confidence Explainer Panel (Expandable) */}
+        {showConfidenceExplainer && (
+          <div className="mt-3.5 p-3.5 bg-slate-950/95 border border-cyan-900/50 rounded-xl space-y-2.5 text-xs animate-fadeIn shadow-lg">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span className="font-bold text-white">Gemini Statutory Confidence Analysis</span>
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-mono">
+                  {aiAnalysis?.modelUsed || 'Gemini 3.8 Flash Engine'}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLegendModal(true)}
+                  className="px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-700 flex items-center space-x-1 transition-colors cursor-pointer"
+                  title="View Confidence Scoring Methodology and Interval Legend"
+                >
+                  <BookOpen className="w-3 h-3 text-cyan-400" />
+                  <span>Scoring Legend</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fetchRequirementConfidence(true)}
+                  disabled={isLoadingConfidence}
+                  className="px-2 py-0.5 text-[10px] font-semibold rounded bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700 flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Re-run Gemini statutory analysis"
+                >
+                  <Sparkles className={`w-3 h-3 ${isLoadingConfidence ? 'animate-spin' : ''}`} />
+                  <span>{isLoadingConfidence ? 'Analyzing...' : 'Re-analyze'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowConfidenceExplainer(false)}
+                  className="text-slate-400 hover:text-white p-1"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {(() => {
+              const mandate = aiAnalysis?.overallMandate || analyzeRegulationMandate(regulation);
+              const label = aiAnalysis?.overallMandate ? aiAnalysis.overallMandate.label : (mandate as any).type;
+              return (
+                <div className="space-y-2 text-slate-300 text-xs">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-slate-400 text-[11px]">Classification:</span>
+                    <span className="font-bold text-white px-2 py-0.5 rounded bg-slate-900 border border-slate-800">
+                      {label}
+                    </span>
+                    <span className="text-slate-400 text-[11px]">Confidence Score:</span>
+                    <span className="font-mono font-bold text-emerald-400">
+                      {mandate.confidenceScore}% [{mandate.confidenceInterval}]
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed bg-slate-900/80 p-2.5 rounded-lg border border-slate-800/80">
+                    <strong className="text-white block mb-0.5">Statutory Jurist Rationale:</strong>
+                    {mandate.rationale}
+                  </p>
+                  <p className="text-[11px] text-slate-400 italic">
+                    * Analyzed by Gemini AI based on statutory instrument backing (Decree vs. Circular), mandatory auxiliary verbs (shall/must), and enforcement penalty exposure.
+                  </p>
+                </div>
+              );
+            })()}
+          </div>
+        )}
 
         {/* Urgency Score Detailed Breakdown Panel (Expandable) */}
         {showUrgencyBreakdown && (
@@ -432,15 +626,54 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
               </button>
             )}
 
-            <a
-              href={regulation.officialUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2.5 py-1 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-1.5 transition-colors"
-            >
-              <span>Official Standard</span>
-              <ExternalLink className="w-3 h-3 text-slate-400" />
-            </a>
+            {/* Official Portal Link with Verified / Unverified Indicator */}
+            {(() => {
+              const audit = getLinkAudit ? getLinkAudit(regulation.id, 'officialUrl') : undefined;
+              const isBroken = audit?.isBroken;
+
+              return (
+                <div className="inline-flex items-center space-x-1.5">
+                  <a
+                    href={regulation.officialUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`px-2.5 py-1 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border flex items-center space-x-1.5 transition-colors group ${
+                      isBroken
+                        ? 'border-rose-500/50 hover:border-rose-500'
+                        : 'border-slate-700 hover:border-emerald-500/50'
+                    }`}
+                    title={`Direct link to statutory authority portal: ${regulation.officialUrl}`}
+                  >
+                    <ShieldCheck
+                      className={`w-3.5 h-3.5 transition-transform group-hover:scale-110 ${
+                        isBroken ? 'text-rose-400' : 'text-emerald-400'
+                      }`}
+                    />
+                    <span>Official Portal</span>
+                    <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-300" />
+                  </a>
+
+                  {/* Reachability Status Indicator: Verified vs Unverified */}
+                  {isBroken ? (
+                    <span
+                      className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/40"
+                      title={`Statutory Link Check: Unreachable or missing (${audit?.statusText || 'HTTP 404/Error'}). Flagged for admin remediation.`}
+                    >
+                      <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0" />
+                      <span>Unverified / Missing</span>
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                      title={`Statutory Link Check: Reachable (HTTP ${audit?.status || 200} OK) • Last Checked: ${audit?.lastChecked || 'Recent daemon scan'}`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                      <span>Verified (200 OK)</span>
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
 
             {onExportSingle && (
               <button
@@ -454,17 +687,50 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
               </button>
             )}
 
-            {regulation.documentPdfUrl && (
-              <a
-                href={regulation.documentPdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-2.5 py-1 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-1.5 transition-colors"
-              >
-                <FileText className="w-3 h-3 text-red-400" />
-                <span>PDF Document</span>
-              </a>
-            )}
+            {/* Gazette PDF Document Link with Verified vs Missing Indicator */}
+            {regulation.documentPdfUrl && (() => {
+              const pdfAudit = getLinkAudit ? getLinkAudit(regulation.id, 'documentPdfUrl') : undefined;
+              const isPdfBroken = pdfAudit?.isBroken;
+
+              return (
+                <div className="inline-flex items-center space-x-1.5">
+                  <a
+                    href={regulation.documentPdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`px-2.5 py-1 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border flex items-center space-x-1.5 transition-colors ${
+                      isPdfBroken
+                        ? 'border-amber-500/50 hover:border-amber-500'
+                        : 'border-slate-700 hover:border-red-500/40'
+                    }`}
+                    title={`Direct link to official statutory PDF gazette: ${regulation.documentPdfUrl}`}
+                  >
+                    <FileText className={`w-3.5 h-3.5 ${isPdfBroken ? 'text-amber-400' : 'text-red-400'}`} />
+                    <span>PDF Document</span>
+                    <ExternalLink className="w-3 h-3 text-slate-400" />
+                  </a>
+
+                  {/* PDF Reachability Status: PDF Verified vs PDF Missing */}
+                  {isPdfBroken ? (
+                    <span
+                      className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/40"
+                      title={`PDF Gazette Check: PDF Missing or unreachable (${pdfAudit?.statusText || 'Inaccessible'}). Flagged for admin verification.`}
+                    >
+                      <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+                      <span>PDF Missing</span>
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                      title={`PDF Gazette Check: Verified Reachable (HTTP ${pdfAudit?.status || 200} OK) • Last Checked: ${pdfAudit?.lastChecked || 'Recent daemon scan'}`}
+                    >
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                      <span>PDF Verified</span>
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -563,32 +829,146 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
           {/* Sample Granular Controls with Clause Reference & Standard Mapping */}
           {regulation.sampleControls && regulation.sampleControls.length > 0 && (
             <div className="pt-2">
-              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                Granular Control Clauses & Global Mappings:
-              </h4>
-
-              <div className="space-y-3">
-                {regulation.sampleControls.map((ctrl) => (
-                  <div
-                    key={ctrl.id}
-                    className="p-3.5 bg-slate-900 border border-slate-800 rounded-lg space-y-2 text-xs"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                          {ctrl.code}
-                        </span>
-                        <span className="font-bold text-white">{ctrl.title}</span>
-                      </div>
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        Ref: {ctrl.clauseReference}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 mb-3 border-b border-slate-800 gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
+                    <span>Granular Statutory Requirements &amp; Global Mappings:</span>
+                    {aiAnalysis?.isLiveGemini && (
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                        GEMINI EXTRACTED
                       </span>
-                    </div>
+                    )}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Each requirement explicitly features a Compliance Requirement Confidence score (Mandatory vs. Guideline) extracted &amp; analyzed by backend Gemini.
+                  </p>
+                </div>
 
-                    <p className="text-slate-300 leading-relaxed text-xs">{ctrl.description}</p>
+                <div className="flex items-center space-x-2 shrink-0 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowLegendModal(true)}
+                    className="px-2.5 py-1 text-xs font-semibold rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
+                    title="View Confidence Scoring Methodology and Interval Legend"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Scoring Legend</span>
+                  </button>
 
-                    {/* Mappings */}
-                    <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => fetchRequirementConfidence(true)}
+                    disabled={isLoadingConfidence}
+                    className="px-2.5 py-1 text-xs font-semibold rounded bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-600/40 flex items-center space-x-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                    title="Re-run backend Gemini extraction and legal confidence analysis on these requirements"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 text-cyan-400 ${isLoadingConfidence ? 'animate-spin' : ''}`} />
+                    <span>{isLoadingConfidence ? 'Analyzing...' : 'Re-analyze'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Minimum Confidence Level Active Filter Notice */}
+              {minConfidenceFilter > 0 && (
+                <div className="mb-3 px-3 py-2 rounded-lg bg-cyan-950/40 border border-cyan-800/40 text-[11px] text-cyan-200 flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5">
+                    <Filter className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                    <span>
+                      Filtered by Minimum Confidence: <strong>&ge;{minConfidenceFilter}%</strong>
+                    </span>
+                  </div>
+                  <span className="font-mono text-[10px] text-cyan-300 bg-cyan-900/60 px-2 py-0.5 rounded border border-cyan-700/60">
+                    {displayedControls.length} of {regulation.sampleControls.length} clauses match
+                  </span>
+                </div>
+              )}
+
+              {displayedControls.length === 0 ? (
+                <div className="p-4 rounded-lg bg-slate-900/60 border border-dashed border-slate-800 text-center text-xs text-slate-400 space-y-1">
+                  <p>No requirement clauses meet the active &ge;{minConfidenceFilter}% confidence threshold.</p>
+                  <p className="text-[11px] text-slate-500">Lower the Minimum Confidence Level in the filters above to inspect all statutory controls.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {displayedControls.map((ctrl) => {
+                  const reqConf = getRequirementConfidence(ctrl);
+
+                  return (
+                    <div
+                      key={ctrl.id}
+                      className="p-3.5 bg-slate-900 border border-slate-800 rounded-lg space-y-2 text-xs hover:border-slate-700/80 transition-colors"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                            {ctrl.code}
+                          </span>
+                          <span className="font-bold text-white">{ctrl.title}</span>
+                        </div>
+
+                        {/* Explicit Compliance Requirement Confidence Visual Badge */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div
+                            className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border shadow-xs transition-all ${
+                              reqConf.label === 'Mandatory'
+                                ? 'bg-rose-500/15 text-rose-300 border-rose-500/40 hover:bg-rose-500/25'
+                                : reqConf.label === 'Conditional'
+                                ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25'
+                                : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/25'
+                            }`}
+                            title={`Compliance Requirement Confidence: ${reqConf.label} (${reqConf.confidenceScore}% [${reqConf.confidenceInterval}]). Rationale: ${reqConf.rationale} (Analyzed by Gemini AI)`}
+                          >
+                            <Scale className="w-3 h-3 shrink-0 opacity-80" />
+                            <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider hidden md:inline">
+                              Compliance Requirement Confidence:
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold uppercase bg-black/40 text-white">
+                              {reqConf.label}
+                            </span>
+                            <span className="font-mono font-bold text-white bg-slate-900/60 px-1 py-0.2 rounded border border-slate-700/60">
+                              {reqConf.confidenceScore}%
+                            </span>
+                            <span className="font-mono text-[10px] opacity-80 hidden lg:inline">
+                              [{reqConf.confidenceInterval}]
+                            </span>
+                            {reqConf.isGeminiExtracted && (
+                              <span className="text-cyan-300 flex items-center" title="Extracted by Gemini AI Service">
+                                <Sparkles className="w-3 h-3 ml-0.5" />
+                              </span>
+                            )}
+                          </div>
+
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            Ref: {ctrl.clauseReference}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-slate-300 leading-relaxed text-xs">{ctrl.description}</p>
+
+                      {/* Gemini Statutory Jurist Rationale Bar */}
+                      {reqConf.rationale && (
+                        <div className="p-2 rounded bg-slate-950/70 border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px]">
+                          <div className="flex items-start sm:items-center space-x-1.5 text-slate-300">
+                            <span className="inline-flex items-center space-x-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800/80 shrink-0 uppercase tracking-wider">
+                              <Sparkles className="w-2.5 h-2.5 mr-0.5" />
+                              Gemini Jurist Rationale
+                            </span>
+                            <span className="italic text-slate-300 leading-snug">
+                              "{reqConf.rationale}"
+                            </span>
+                          </div>
+                          {reqConf.statutoryKeyword && (
+                            <span className="inline-flex items-center space-x-1 px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-amber-300 shrink-0 self-start sm:self-auto">
+                              <span className="text-slate-500 font-sans">Trigger:</span>
+                              <span>{reqConf.statutoryKeyword}</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Mappings */}
+                      <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold text-slate-400">Global Crosswalk:</span>
 
@@ -631,12 +1011,20 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           )}
         </div>
       )}
+        </div>
+      )}
+
+      {/* Confidence Level Scoring Legend Modal */}
+      <ConfidenceLevelLegendModal
+        isOpen={showLegendModal}
+        onClose={() => setShowLegendModal(false)}
+      />
     </div>
   );
 };

@@ -21,7 +21,7 @@ export const ADDITIONAL_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-11-20',
     scopeSummary: 'Extension to ECC-1:2018 mandating defense-in-depth, zero trust segmentation, continuous behavioral monitoring, and air-gapped backups for high-criticality national systems.',
     targetSectors: ['Government', 'Critical Infrastructure', 'Banking', 'Oil & Gas', 'Utilities', 'Telco'],
-    officialUrl: 'https://nca.gov.sa/en/regulations-and-standards/cscc/',
+    officialUrl: 'https://www.nca.gov.sa//regulations-and-standards/cscc/',
     controlStructure: {
       domainsCount: 4,
       subDomainsCount: 16,
@@ -81,7 +81,7 @@ export const ADDITIONAL_REGULATIONS: Regulation[] = [
     lastUpdated: '2024-01-15',
     scopeSummary: 'Prescribes mandatory cryptographic protection, key management (BYOK/HYOK), data lifecycle sanitation, and DLP controls across classified government and enterprise datasets.',
     targetSectors: ['Banking', 'Government', 'Cloud & Hyperscalers', 'Telco', 'Healthcare', 'Insurance'],
-    officialUrl: 'https://nca.gov.sa/en/regulations-and-standards/dcc/',
+    officialUrl: 'https://www.nca.gov.sa//regulations-and-standards/dcc/',
     controlStructure: {
       domainsCount: 3,
       subDomainsCount: 12,
@@ -464,7 +464,7 @@ export const ADDITIONAL_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-11-15',
     scopeSummary: 'Mandates 24/7 Security Operations Centers (SOC), Swift Customer Security Programme (CSP) compliance, continuous red teaming, and strict cloud outsourcing approvals for Qatari banks.',
     targetSectors: ['Banking', 'Financial Services', 'Payments', 'Fintech', 'Insurance'],
-    officialUrl: 'https://www.qcb.gov.qa/English/Legislation/',
+    officialUrl: 'https://www.qcb.gov.qa/en/Pages/default.aspx',
     controlStructure: {
       domainsCount: 5,
       subDomainsCount: 22,
@@ -531,7 +531,7 @@ export const ADDITIONAL_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-04-10',
     scopeSummary: 'Criminalizes electronic trespass, financial card forgery, intellectual property piracy, state security cyber attacks, and mandates 90-day subscriber metadata retention by telcos.',
     targetSectors: ['Telco', 'Banking', 'Critical Infrastructure', 'Government'],
-    officialUrl: 'https://www.almeezan.qa/LawView.aspx?opt&LawID=6353',
+    officialUrl: 'https://www.almeezan.qa/',
     controlStructure: {
       domainsCount: 3,
       subDomainsCount: 10,
@@ -650,7 +650,7 @@ export const ADDITIONAL_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-04-12',
     scopeSummary: 'Provides clear operational rules permitting Bahrain banks to utilize overseas and local public cloud providers (including AWS Bahrain Region) subject to prior CBB approval and exit plans.',
     targetSectors: ['Banking', 'Financial Services', 'Fintech', 'Insurance', 'Payments'],
-    officialUrl: 'https://rulebook.cbb.gov.bh/',
+    officialUrl: 'https://www.cbb.gov.bh/laws-regulations/',
     controlStructure: {
       domainsCount: 3,
       subDomainsCount: 11,
@@ -770,7 +770,7 @@ export const ADDITIONAL_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-09-10',
     scopeSummary: 'Governs cloud service providers operating in Kuwait, establishing accreditation tiers, data sovereignty mandates, and tenant security baseline standards.',
     targetSectors: ['Cloud & Hyperscalers', 'Government', 'Telco', 'Banking', 'Digital Tech Startups'],
-    officialUrl: 'https://www.citra.gov.kw/sites/en/Pages/CategoriesParagraphs/CloudComputingServiceProviders.aspx',
+    officialUrl: 'https://www.citra.gov.kw/',
     controlStructure: {
       domainsCount: 4,
       subDomainsCount: 15,
@@ -951,7 +951,7 @@ export const ADDITIONAL_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-07-15',
     scopeSummary: 'Foundational Egyptian cybercrime law mandating 180-day user transaction and IP log retention by internet service providers, penalizing data breach cover-ups, and securing government systems.',
     targetSectors: ['Telco', 'Banking', 'Government', 'Retail & E-Commerce', 'Cloud & Hyperscalers'],
-    officialUrl: 'https://mcit.gov.eg/en/Regulations_and_Policies/Laws',
+    officialUrl: 'https://mcit.gov.eg/en/Regulations_and_Policies/Laws/en/Regulations_and_Policies/Laws',
     controlStructure: {
       domainsCount: 4,
       subDomainsCount: 12,
@@ -1318,7 +1318,7 @@ export const ADDITIONAL_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-08-25',
     scopeSummary: 'Prescribes severe penal sanctions for electronic fraud, unauthorized entry into public IT systems, digital extortion, and establishes judicial cooperation duties for telecom operators.',
     targetSectors: ['Telco', 'Banking', 'Government', 'Retail & E-Commerce'],
-    officialUrl: 'http://www.legislation.tn/',
+    officialUrl: 'https://www.bct.gov.tn/',
     controlStructure: {
       domainsCount: 3,
       subDomainsCount: 10,
@@ -1376,7 +1376,7 @@ export const ADDITIONAL_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-10-15',
     scopeSummary: 'Tunisian data protection law establishing individual privacy rights, mandatory prior authorization for health and biometric data, and restricting international transfers without INPDP permit.',
     targetSectors: ['Banking', 'Healthcare', 'Cloud & Hyperscalers', 'Telco'],
-    officialUrl: 'http://www.inpdp.nat.tn/',
+    officialUrl: 'https://www.ancs.tn',
     controlStructure: {
       domainsCount: 4,
       subDomainsCount: 12,
@@ -1735,7 +1735,7 @@ export const ADDITIONAL_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-06-25',
     scopeSummary: 'Prescribes penal measures for hacking, unauthorized access to national defense informatics, electronic funds theft, and mandates technical cooperation from ISPs and telecom operators.',
     targetSectors: ['Banking', 'Critical Infrastructure', 'Government', 'Telco'],
-    officialUrl: 'https://www.mjustice.dz/',
+    officialUrl: 'https://anpdp.dz/',
     controlStructure: {
       domainsCount: 3,
       subDomainsCount: 10,

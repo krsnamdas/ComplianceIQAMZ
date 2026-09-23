@@ -21,6 +21,8 @@ import { ComplianceIQLogo } from './components/ComplianceIQLogo';
 import { RegulationComparator } from './components/RegulationComparator';
 import { ControlInterpreter } from './components/ControlInterpreter';
 import { AIRedlining } from './components/AIRedlining';
+import { RegionalRegulatoryDigest } from './components/RegionalRegulatoryDigest';
+import { LoginModal } from './components/LoginModal';
 import { useRBAC } from './context/RBACContext';
 import { useAdmin } from './context/AdminContext';
 import { MENAT_COUNTRIES, MENAT_REGULATIONS, MOCK_REGULATORY_UPDATES, INITIAL_SCRAPER_LOGS } from './data/menatData';
@@ -43,13 +45,57 @@ import {
   saveWatchlistPreferences,
   generateSpecializedNotifications,
 } from './utils/watchlistManager';
-import { Search, Filter, Shield, Globe2, BookOpen, Layers, CheckCircle2, AlertCircle, Sparkles, FileText } from 'lucide-react';
+import { analyzeRegulationMandate, analyzeControlMandate } from './utils/mandateConfidence';
+import { ConfidenceLevelLegendModal } from './components/ConfidenceLevelLegendModal';
+import { Search, Filter, Shield, Globe2, BookOpen, Layers, CheckCircle2, AlertCircle, Sparkles, FileText, Scale, Sliders } from 'lucide-react';
 
 export default function App() {
   const { canManageWatchlist, canTriggerScraper, triggerRestrictedAction } = useRBAC();
-  const { regulations, featureFlags } = useAdmin();
+  const { regulations, featureFlags, isAuthenticated } = useAdmin();
 
   const [activeTab, setActiveTab] = useState<NavigationTab>('overview');
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [targetModuleNameForLogin, setTargetModuleNameForLogin] = useState<string>('');
+  const [pendingTabAfterLogin, setPendingTabAfterLogin] = useState<NavigationTab | null>(null);
+
+  const handleRequestLogin = (targetTab: NavigationTab) => {
+    const tabNames: Record<string, string> = {
+      overview: 'Jurisdictions & Controls Registry',
+      digest: 'Regional Regulatory Digest',
+      regulations: 'Statutory Regulations Repository',
+      interpreter: 'AI Control Clause Interpreter',
+      ai_redline: 'Multi-Standard AI Policy Redlining',
+      compare: 'Cross-Jurisdiction Legal Comparator',
+      maturity_heatmap: 'Sovereign Compliance Maturity Heatmap',
+      watchlist: 'Regulatory Watchlist & Specialized Trackers',
+      roadmap: 'Sovereign Regulatory Roadmap Forecast',
+      timeline: 'Interactive Regulatory Milestones Timeline',
+      version_diffs: 'Regulatory Version Diffs & Amendments',
+      controls: 'Controls Crosswalk & Global Mappings',
+      radar: 'Regulatory Intelligence Radar',
+      sectors: 'Regulated Industry Sectors Matrix',
+      sources: 'Tracked Official Legal Portals',
+      admin: 'Administrative Console Gateway',
+    };
+    setTargetModuleNameForLogin(tabNames[targetTab] || 'Detailed Sovereign Compliance Modules');
+    setPendingTabAfterLogin(targetTab);
+    setIsLoginModalOpen(true);
+  };
+
+  const handleLoginSuccess = () => {
+    setIsLoginModalOpen(false);
+    if (pendingTabAfterLogin) {
+      setActiveTab(pendingTabAfterLogin);
+      setPendingTabAfterLogin(null);
+    }
+  };
+
+  // Redirect guest visitors to overview if on a protected tab
+  useEffect(() => {
+    if (!isAuthenticated && activeTab !== 'overview') {
+      setActiveTab('overview');
+    }
+  }, [isAuthenticated, activeTab]);
 
   // Auto-fallback to overview if active tab gets disabled via feature flags
   useEffect(() => {
@@ -68,6 +114,8 @@ export default function App() {
   const [selectedCountryId, setSelectedCountryId] = useState<string>('all');
   const [techFilter, setTechFilter] = useState<'all' | 'tech' | 'non_tech'>('all');
   const [sectorFilter, setSectorFilter] = useState<string>('all');
+  const [minConfidence, setMinConfidence] = useState<number>(0);
+  const [showGlobalLegendModal, setShowGlobalLegendModal] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedDiffId, setSelectedDiffId] = useState<string | undefined>(undefined);
   const [comparatorRegA, setComparatorRegA] = useState<string | undefined>(undefined);
@@ -347,13 +395,24 @@ export default function App() {
 
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
-      return (
+      const matchesSearch =
         r.name.toLowerCase().includes(q) ||
         r.code.toLowerCase().includes(q) ||
         r.authority.toLowerCase().includes(q) ||
         r.scopeSummary.toLowerCase().includes(q) ||
-        (r.arabicName && r.arabicName.includes(q))
-      );
+        (r.arabicName && r.arabicName.includes(q));
+      if (!matchesSearch) return false;
+    }
+
+    if (minConfidence > 0) {
+      const overallScore = analyzeRegulationMandate(r).confidenceScore;
+      const hasMatchingRequirement = r.sampleControls?.some((c) => {
+        return analyzeControlMandate(c).confidenceScore >= minConfidence;
+      });
+      // Retain regulation if its overall score meets threshold OR it has granular requirements meeting it
+      if (overallScore < minConfidence && !hasMatchingRequirement) {
+        return false;
+      }
     }
 
     return true;
@@ -367,6 +426,7 @@ export default function App() {
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        onRequestLogin={handleRequestLogin}
         onTriggerScrape={handleTriggerScrape}
         onOpenExport={() => setIsExportModalOpen(true)}
         onOpenAIChat={() => setIsAIChatOpen(true)}
@@ -374,6 +434,7 @@ export default function App() {
         totalRegulations={regulations.length}
         watchlistCount={watchlistPins.length}
         unreadNotificationsCount={unreadSpecializedCount}
+        scraperStatus={scraperStatus}
       />
 
       {/* Global Real-Time System Broadcast Banner */}
@@ -387,9 +448,9 @@ export default function App() {
           }
           setActiveTab('overview');
         }}
-        onOpenRegistry={() => setActiveTab('regulations')}
-        onOpenHeatmap={() => setActiveTab('maturity_heatmap')}
-        onOpenCrosswalk={() => setActiveTab('controls')}
+        onOpenRegistry={() => isAuthenticated ? setActiveTab('regulations') : handleRequestLogin('regulations')}
+        onOpenHeatmap={() => isAuthenticated ? setActiveTab('maturity_heatmap') : handleRequestLogin('maturity_heatmap')}
+        onOpenCrosswalk={() => isAuthenticated ? setActiveTab('controls') : handleRequestLogin('controls')}
       />
 
       {/* Alert Notification Toast */}
@@ -416,13 +477,42 @@ export default function App() {
             onViewRegulations={handleSelectCountryFromOverview}
             onViewSources={(cId) => {
               setSelectedCountryId(cId);
-              setActiveTab('sources');
+              if (isAuthenticated) {
+                setActiveTab('sources');
+              } else {
+                handleRequestLogin('sources');
+              }
             }}
             onViewTimeline={(cId) => {
               if (cId) setSelectedCountryId(cId);
-              setActiveTab('timeline');
+              if (isAuthenticated) {
+                setActiveTab('timeline');
+              } else {
+                handleRequestLogin('timeline');
+              }
             }}
-            onNavigateTab={(tab) => setActiveTab(tab)}
+            onNavigateTab={(tab) => {
+              if (isAuthenticated || tab === 'overview') {
+                setActiveTab(tab);
+              } else {
+                handleRequestLogin(tab);
+              }
+            }}
+            onRequestLogin={handleRequestLogin}
+            scraperStatus={scraperStatus}
+            isScraping={isScraping}
+            onTriggerScrape={handleTriggerScrape}
+          />
+        )}
+
+        {/* VIEW: Regional Regulatory Digest (Personalized Subscriptions & High-Priority Alerts) */}
+        {activeTab === 'digest' && (
+          <RegionalRegulatoryDigest
+            onNavigateHome={() => setActiveTab('overview')}
+            onViewRegulation={(code) => {
+              setSearchTerm(code);
+              setActiveTab('regulations');
+            }}
           />
         )}
 
@@ -433,12 +523,18 @@ export default function App() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase">
+                      Statutory Repository
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">160+ Sovereign Acts</span>
+                  </div>
                   <h2 className="text-xl font-bold text-white tracking-tight flex items-center space-x-2">
                     <BookOpen className="w-5 h-5 text-emerald-400" />
                     <span>MENAT Regulatory Standards Registry</span>
                   </h2>
-                  <p className="text-sm text-slate-400 mt-0.5">
-                    Classified as Tech (Cyber, Cloud, AI, OT, Data) and Non-Tech with Tech Impact across all sectors.
+                  <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-3xl leading-relaxed">
+                    Master catalog of active cybersecurity, data protection, AI ethics, cloud security, and financial regulations across all 24 sovereign nations. Search by keyword or jurisdiction, filter by industry sector, inspect article-level controls, and generate audit-ready compliance dossiers with 100% verified official gazette portals.
                   </p>
                 </div>
 
@@ -476,7 +572,7 @@ export default function App() {
               </div>
 
               {/* Filtering Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-slate-800">
                 {/* Search */}
                 <div className="relative">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -525,7 +621,161 @@ export default function App() {
                     <option value="Gaming & Entertainment">Gaming & Entertainment</option>
                   </select>
                 </div>
+
+                {/* Minimum Confidence Level Dropdown */}
+                <div>
+                  <select
+                    value={minConfidence}
+                    onChange={(e) => setMinConfidence(Number(e.target.value))}
+                    className={`w-full px-3 py-1.5 text-xs bg-slate-950 border rounded-lg text-white focus:outline-none transition-colors ${
+                      minConfidence > 0
+                        ? 'border-cyan-500 text-cyan-200 font-semibold'
+                        : 'border-slate-800'
+                    }`}
+                  >
+                    <option value={0}>Confidence: All Levels (0%+)</option>
+                    <option value={70}>≥ 70% (Guidelines &amp; Advisory)</option>
+                    <option value={80}>≥ 80% (Conditional &amp; Sectoral)</option>
+                    <option value={85}>≥ 85% (Legally Enforceable Mandates)</option>
+                    <option value={90}>≥ 90% (High-Certainty Mandatory Only)</option>
+                    <option value={95}>≥ 95% (Strict Sovereign Decrees)</option>
+                  </select>
+                </div>
               </div>
+
+              {/* AI Confidence Calibration Slider Bar */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 rounded-lg bg-slate-950/80 border border-slate-800">
+                <div className="flex items-center space-x-3">
+                  <div className="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center shrink-0">
+                    <Scale className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-bold text-white">Minimum AI Confidence Level:</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold border ${
+                        minConfidence >= 90
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                          : minConfidence >= 80
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : minConfidence > 0
+                          ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                          : 'bg-slate-800 text-slate-300 border-slate-700'
+                      }`}>
+                        {minConfidence === 0 ? 'All Levels (0%+)' : `≥ ${minConfidence}% Confidence`}
+                      </span>
+                      {minConfidence >= 90 ? (
+                        <span className="text-[10px] text-rose-400 font-semibold uppercase">Mandatory Only</span>
+                      ) : minConfidence >= 80 ? (
+                        <span className="text-[10px] text-amber-400 font-semibold uppercase">Conditional + Mandatory</span>
+                      ) : minConfidence > 0 ? (
+                        <span className="text-[10px] text-indigo-400 font-semibold uppercase">Guidelines Included</span>
+                      ) : null}
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Filters statutory regulations and requirement clauses based on backend Gemini legal confidence scores.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-3 w-full md:w-auto">
+                  {/* Slider Control */}
+                  <div className="flex items-center space-x-2 flex-1 md:w-48">
+                    <span className="text-[11px] text-slate-500 font-mono">0%</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="95"
+                      step="5"
+                      value={minConfidence}
+                      onChange={(e) => setMinConfidence(Number(e.target.value))}
+                      className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg appearance-none"
+                      aria-label="Minimum confidence level slider"
+                    />
+                    <span className="text-[11px] text-slate-500 font-mono">95%</span>
+                  </div>
+
+                  {/* Preset Quick Buttons */}
+                  <div className="flex items-center space-x-1 shrink-0">
+                    {[0, 80, 90, 95].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setMinConfidence(preset)}
+                        className={`px-2 py-1 text-[10px] font-mono font-bold rounded transition-colors cursor-pointer border ${
+                          minConfidence === preset
+                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50'
+                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                        }`}
+                      >
+                        {preset === 0 ? 'All' : `≥${preset}%`}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Methodology Legend Opener */}
+                  <button
+                    type="button"
+                    onClick={() => setShowGlobalLegendModal(true)}
+                    className="p-1.5 text-slate-400 hover:text-cyan-300 hover:bg-slate-800 rounded-lg transition-colors border border-transparent hover:border-slate-700 shrink-0"
+                    title="Open Confidence Level Methodology Legend"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Active Filter Chips & Summary */}
+              {(minConfidence > 0 || searchTerm || techFilter !== 'all' || sectorFilter !== 'all' || selectedCountryId !== 'all') && (
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px]">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-slate-400 font-medium">Active Filters:</span>
+                    {minConfidence > 0 && (
+                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono text-[10px]">
+                        <span>Confidence ≥{minConfidence}%</span>
+                        <button onClick={() => setMinConfidence(0)} className="hover:text-white cursor-pointer ml-1">✕</button>
+                      </span>
+                    )}
+                    {selectedCountryId !== 'all' && (
+                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-[10px]">
+                        <span>Jurisdiction: {selectedCountryObj?.name || selectedCountryId}</span>
+                        <button onClick={() => setSelectedCountryId('all')} className="hover:text-white cursor-pointer ml-1">✕</button>
+                      </span>
+                    )}
+                    {techFilter !== 'all' && (
+                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-[10px]">
+                        <span>{techFilter === 'tech' ? 'Tech Only' : 'Non-Tech Only'}</span>
+                        <button onClick={() => setTechFilter('all')} className="hover:text-white cursor-pointer ml-1">✕</button>
+                      </span>
+                    )}
+                    {sectorFilter !== 'all' && (
+                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-[10px]">
+                        <span>Sector: {sectorFilter}</span>
+                        <button onClick={() => setSectorFilter('all')} className="hover:text-white cursor-pointer ml-1">✕</button>
+                      </span>
+                    )}
+                    {searchTerm && (
+                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-[10px]">
+                        <span>Query: &quot;{searchTerm}&quot;</span>
+                        <button onClick={() => setSearchTerm('')} className="hover:text-white cursor-pointer ml-1">✕</button>
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMinConfidence(0);
+                      setSelectedCountryId('all');
+                      setTechFilter('all');
+                      setSectorFilter('all');
+                      setSearchTerm('');
+                    }}
+                    className="text-xs text-slate-400 hover:text-white underline cursor-pointer"
+                  >
+                    Reset all filters
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Selected Country Banner if specific country selected */}
@@ -559,6 +809,7 @@ export default function App() {
                       regulation={reg}
                       countryName={countryObj?.name || reg.countryId.toUpperCase()}
                       countryFlag={countryObj?.flag || '🌐'}
+                      minConfidenceFilter={minConfidence}
                       isPinned={isPinned}
                       onTogglePin={handleTogglePin}
                       onExportSingle={(regId) => handleOpenExportWithRegs([regId])}
@@ -794,6 +1045,7 @@ export default function App() {
             onSelectCountryFilter={(cId) => setSelectedCountryId(cId)}
             onTriggerScrape={handleTriggerScrape}
             isScraping={isScraping}
+            scraperStatus={scraperStatus}
           />
         )}
 
@@ -815,6 +1067,20 @@ export default function App() {
 
       {/* Global RBAC Elevation & Restriction Modal */}
       <RBACRestrictedModal />
+
+      {/* Guest Authentication Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+        targetModuleName={targetModuleNameForLogin}
+      />
+
+      {/* Global Confidence Level Scoring Legend & Interval Modal */}
+      <ConfidenceLevelLegendModal
+        isOpen={showGlobalLegendModal}
+        onClose={() => setShowGlobalLegendModal(false)}
+      />
 
       {/* Floating Gemini AI Copilot Quick-Launch Button */}
       <button

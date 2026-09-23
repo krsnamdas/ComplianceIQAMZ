@@ -95,7 +95,7 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
 - Verify upcoming 2026-2027 statutory deadlines, penalty exposures, and executive liability rules.
 - Ground inquiries with live Google Search data for the latest gazette releases.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        modelUsed: 'gemini-3.5-flash',
+        modelUsed: 'gemini-3.8-flash',
         groundingSources: [
           { title: 'Saudi NCA Regulations Portal', url: 'https://nca.gov.sa' },
           { title: 'SDAIA National Data & AI Framework', url: 'https://sdaia.gov.sa' },
@@ -107,7 +107,7 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
   const [inputPrompt, setInputPrompt] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [selectedRole, setSelectedRole] = useState<string>(COMPLIANCE_ROLES[0].id);
-  const [selectedModel, setSelectedModel] = useState<'gemini-3.5-flash' | 'gemini-3.1-flash-lite'>('gemini-3.5-flash');
+  const [selectedModel, setSelectedModel] = useState<'gemini-3.8-flash' | 'gemini-3.1-flash-lite'>('gemini-3.8-flash');
   const [enableSearchGrounding, setEnableSearchGrounding] = useState<boolean>(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -325,13 +325,13 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
               <button
                 onClick={() =>
                   setSelectedModel(
-                    selectedModel === 'gemini-3.5-flash' ? 'gemini-3.1-flash-lite' : 'gemini-3.5-flash'
+                    selectedModel === 'gemini-3.8-flash' ? 'gemini-3.1-flash-lite' : 'gemini-3.8-flash'
                   )
                 }
                 className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[11px] font-mono transition-colors"
-                title="Toggle between standard 3.5 Flash and fast 3.1 Flash Lite"
+                title="Toggle between standard 3.8 Flash and fast 3.1 Flash Lite"
               >
-                {selectedModel === 'gemini-3.5-flash' ? '3.5 Flash (Grounded)' : '3.1 Flash Lite (Fast)'}
+                {selectedModel === 'gemini-3.8-flash' ? '3.8 Flash (Grounded)' : '3.1 Flash Lite (Fast)'}
               </button>
             </div>
 

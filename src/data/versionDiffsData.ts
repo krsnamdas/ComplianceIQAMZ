@@ -69,7 +69,7 @@ export const MENAT_VERSION_DIFFS: VersionDiff[] = [
       'Establish a centralized Data Subject Rights (DSR) request intake mechanism with a strict 30-day response SLA.',
       'Configure localized encryption key management (BYOK/HYOK) for cloud-hosted personal data repositories.',
     ],
-    officialAmendmentUrl: 'https://dgp.sdaia.gov.sa/wps/portal/pdp/knowledgecenter/details/PDPL',
+    officialAmendmentUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/Personal%20Data%20English%20V2-23April2023-%20Reviewed-.pdf',
   },
   {
     id: 'diff-turkiye-kvkk',
@@ -335,7 +335,7 @@ export const MENAT_VERSION_DIFFS: VersionDiff[] = [
       'Schedule external CREST Red Team exercise before the upcoming audit cycle.',
       'Review and update Cloud exit strategy documentation for core banking hosting.',
     ],
-    officialAmendmentUrl: 'https://rulebook.cbb.gov.bh/',
+    officialAmendmentUrl: 'https://www.cbb.gov.bh/laws-regulations/',
   },
   {
     id: 'diff-turkiye-bigr',
@@ -380,6 +380,6 @@ export const MENAT_VERSION_DIFFS: VersionDiff[] = [
       'Conduct self-assessment across all 6 headline headings and submit findings via the Presidency DDO BİGR portal.',
       'Contract an authorized independent audit firm for biennial external validation.',
     ],
-    officialAmendmentUrl: 'https://cbddo.gov.tr/en/projects/bigr/',
+    officialAmendmentUrl: 'https://www.cbddo.gov.tr/',
   },
 ];

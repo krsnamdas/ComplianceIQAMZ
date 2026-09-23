@@ -208,8 +208,8 @@ const BASE_MENAT_REGULATIONS: Regulation[] = [
     lastUpdated: '2024-03-15',
     scopeSummary: 'Mandatory minimum cybersecurity baseline for all government agencies and private organizations owning or operating Critical National Infrastructure (CNI) in Saudi Arabia.',
     targetSectors: ['Government', 'Critical Infrastructure', 'Banking', 'Oil & Gas', 'Utilities', 'Telco', 'Cloud & Hyperscalers', 'Healthcare'],
-    officialUrl: 'https://nca.gov.sa/en/regulations-and-standards/ecc/',
-    documentPdfUrl: 'https://nca.gov.sa/ecc-en.pdf',
+    officialUrl: 'https://nca.gov.sa/sites/default/files/2021-10/ECC-1-2018-EN.pdf',
+    documentPdfUrl: 'https://nca.gov.sa/sites/default/files/2021-10/ECC-1-2018-EN.pdf',
     controlStructure: {
       domainsCount: 5,
       subDomainsCount: 29,
@@ -327,8 +327,8 @@ const BASE_MENAT_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-11-20',
     scopeSummary: 'Specialized cybersecurity controls split into Cloud Service Provider (CSP) obligations and Cloud Service Customer (CSC) obligations to safeguard multi-tenant environments.',
     targetSectors: ['Cloud & Hyperscalers', 'Government', 'Fintech', 'Digital Tech Startups', 'Telco'],
-    officialUrl: 'https://nca.gov.sa/en/regulations-and-standards/ccc/',
-    documentPdfUrl: 'https://nca.gov.sa/ccc-en.pdf',
+    officialUrl: 'https://www.nca.gov.sa/en/regulations-and-standards/ccc/',
+    documentPdfUrl: 'https://www.nca.gov.sa/en/regulations-and-standards/ccc/',
     controlStructure: {
       domainsCount: 4,
       subDomainsCount: 26,
@@ -394,7 +394,8 @@ const BASE_MENAT_REGULATIONS: Regulation[] = [
     lastUpdated: '2024-01-10',
     scopeSummary: 'Targeted technical specifications for Industrial Control Systems (ICS), SCADA, DCS, and Safety Instrumented Systems (SIS) across critical infrastructure.',
     targetSectors: ['Oil & Gas', 'Utilities', 'Power & Energy', 'Manufacturing', 'Automotive'],
-    officialUrl: 'https://nca.gov.sa/en/regulations-and-standards/otcc/',
+    officialUrl: 'https://www.nca.gov.sa/en/regulations-and-standards/otcc/',
+    documentPdfUrl: 'https://www.nca.gov.sa/en/regulations-and-standards/otcc/',
     controlStructure: {
       domainsCount: 4,
       subDomainsCount: 22,
@@ -511,7 +512,7 @@ const BASE_MENAT_REGULATIONS: Regulation[] = [
     ],
     scopeSummary: 'Comprehensive privacy regime regulating collection, processing, cross-border transfer, and storage of Saudi residents’ personal data with criminal penalties.',
     targetSectors: ['Banking', 'Fintech', 'Retail & E-Commerce', 'Telco', 'Healthcare', 'Cloud & Hyperscalers', 'Digital Tech Startups'],
-    officialUrl: 'https://dgp.sdaia.gov.sa/wps/portal/pdp/knowledgecenter/details/PDPL',
+    officialUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/Personal%20Data%20English%20V2-23April2023-%20Reviewed-.pdf',
     documentPdfUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/Personal%20Data%20English%20V2-23April2023-%20Reviewed-.pdf',
     controlStructure: {
       domainsCount: 8,
@@ -565,7 +566,8 @@ const BASE_MENAT_REGULATIONS: Regulation[] = [
     lastUpdated: '2024-05-10',
     scopeSummary: 'Framework establishing 7 core principles: Fairness, Privacy, Safety, Explainability, Accountability, Reliability, and Social Benefit for all AI/LLM deployments.',
     targetSectors: ['Digital Tech Startups', 'Cloud & Hyperscalers', 'Banking', 'Healthcare', 'Automotive', 'Government'],
-    officialUrl: 'https://dgp.sdaia.gov.sa/wps/portal/pdp/knowledgecenter',
+    officialUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/ai-ethics-principles-en.pdf',
+    documentPdfUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/ai-ethics-principles-en.pdf',
     controlStructure: {
       domainsCount: 7,
       subDomainsCount: 14,
@@ -669,7 +671,7 @@ const BASE_MENAT_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-12-05',
     scopeSummary: 'Comprehensive information security baseline mandatory for all Dubai government departments, semi-government entities, and their private-sector technology contractors.',
     targetSectors: ['Government', 'Critical Infrastructure', 'Utilities', 'Telco', 'Cloud & Hyperscalers'],
-    officialUrl: 'https://desc.gov.ae/regulations/standards-policies/',
+    officialUrl: 'https://desc.gov.ae/',
     controlStructure: {
       domainsCount: 13,
       subDomainsCount: 70,
@@ -1062,7 +1064,7 @@ const BASE_MENAT_REGULATIONS: Regulation[] = [
     lastUpdated: '2024-02-01',
     scopeSummary: 'Comprehensive security guide issued under Presidential Circular 2019/12 for all public sector institutions and critical infrastructure operators (Energy, Telco, Transport).',
     targetSectors: ['Government', 'Critical Infrastructure', 'Telco', 'Power & Energy', 'Banking'],
-    officialUrl: 'https://cbddo.gov.tr/en/projects/bigr/',
+    officialUrl: 'https://www.cbddo.gov.tr/',
     controlStructure: {
       domainsCount: 6,
       subDomainsCount: 21,
@@ -1184,7 +1186,7 @@ const BASE_MENAT_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-10-15',
     scopeSummary: 'Stringent banking data localization mandate requiring banks’ primary and secondary data centers, core ledgers, and operational recovery systems to be physically sited in Türkiye.',
     targetSectors: ['Banking', 'Financial Services', 'Payments', 'Fintech'],
-    officialUrl: 'https://www.bddk.org.tr/Mevzuat/DokumanGetir/986',
+    officialUrl: 'https://www.bddk.org.tr/',
     controlStructure: {
       domainsCount: 8,
       subDomainsCount: 22,
@@ -1289,7 +1291,7 @@ const BASE_MENAT_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-12-10',
     scopeSummary: 'Detailed supervisory framework governing operational risk, outsourcing to public cloud (AWS Bahrain), business continuity, and incident disclosure.',
     targetSectors: ['Banking', 'Financial Services', 'Fintech', 'Insurance', 'Payments'],
-    officialUrl: 'https://rulebook.cbb.gov.bh/',
+    officialUrl: 'https://www.cbb.gov.bh/laws-regulations/',
     controlStructure: {
       domainsCount: 6,
       subDomainsCount: 16,
@@ -1342,7 +1344,7 @@ const BASE_MENAT_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-08-20',
     scopeSummary: 'Mandatory cybersecurity framework for all telecommunications operators, public bodies, and service providers operating in Kuwait.',
     targetSectors: ['Telco', 'Government', 'Critical Infrastructure', 'Utilities'],
-    officialUrl: 'https://citra.gov.kw/sites/en/Pages/CyberSecurity.aspx',
+    officialUrl: 'https://www.citra.gov.kw/',
     controlStructure: {
       domainsCount: 5,
       subDomainsCount: 18,
@@ -1443,7 +1445,7 @@ const BASE_MENAT_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-11-20',
     scopeSummary: 'Egypt’s primary privacy statute establishing licensing for cross-border data transfer, mandatory DPO appointment, and criminal penalties for electronic data misuse.',
     targetSectors: ['Retail & E-Commerce', 'Telco', 'Banking', 'Fintech', 'Digital Tech Startups', 'Healthcare'],
-    officialUrl: 'https://mcit.gov.eg/en/Regulations/Laws/Personal_Data_Protection_Law',
+    officialUrl: 'https://mcit.gov.eg/en/Regulations_and_Policies/Laws',
     controlStructure: {
       domainsCount: 7,
       subDomainsCount: 17,
@@ -1715,7 +1717,7 @@ export const MOCK_REGULATORY_UPDATES: RegulatoryUpdate[] = [
       'Register SCC agreements on SDAIA official portal within 30 days of execution',
       'Ensure foreign jurisdiction laws do not impair data subject rights under Saudi PDPL',
     ],
-    sourceUrl: 'https://dgp.sdaia.gov.sa/wps/portal/pdp/knowledgecenter/details/PDPL',
+    sourceUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/Personal%20Data%20English%20V2-23April2023-%20Reviewed-.pdf',
     verifiedOfficialSource: true,
   },
   {
@@ -1781,7 +1783,7 @@ export const MOCK_REGULATORY_UPDATES: RegulatoryUpdate[] = [
       'Over-the-air (OTA) encrypted firmware updates with digital signature verification',
       'Complete air-gapping of critical grid telemetry from public cellular networks',
     ],
-    sourceUrl: 'https://nca.gov.sa/en/regulations-and-standards/otcc/',
+    sourceUrl: 'https://www.nca.gov.sa//regulations-and-standards/otcc/',
     verifiedOfficialSource: true,
   },
   {
@@ -1825,7 +1827,7 @@ export const MOCK_REGULATORY_UPDATES: RegulatoryUpdate[] = [
       'Assess quantum vulnerability of long-term archived customer transaction records',
       'Formulate hybrid classical-quantum key exchange pilot implementations by Q4 2025',
     ],
-    sourceUrl: 'https://rulebook.cbb.gov.bh/',
+    sourceUrl: 'https://www.cbb.gov.bh/laws-regulations/',
     verifiedOfficialSource: true,
   },
 ];
@@ -1835,7 +1837,7 @@ export const INITIAL_SCRAPER_LOGS: ScraperLog[] = [
     id: 'log-1',
     timestamp: '2026-09-22 04:00:12 UTC',
     sourceName: 'Saudi National Cybersecurity Authority (NCA)',
-    targetUrl: 'https://nca.gov.sa/en/regulations-and-standards/',
+    targetUrl: 'https://www.nca.gov.sa//regulations-and-standards/',
     status: 'Checked - No Changes',
     httpStatus: 200,
     findingsCount: 0,
@@ -1855,7 +1857,7 @@ export const INITIAL_SCRAPER_LOGS: ScraperLog[] = [
     id: 'log-3',
     timestamp: '2026-09-22 04:05:30 UTC',
     sourceName: 'Saudi Data and AI Authority (SDAIA) Regulations Portal',
-    targetUrl: 'https://dgp.sdaia.gov.sa/wps/portal/pdp/knowledgecenter/details/PDPL',
+    targetUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/Personal%20Data%20English%20V2-23April2023-%20Reviewed-.pdf',
     status: 'Update Detected',
     httpStatus: 200,
     findingsCount: 1,

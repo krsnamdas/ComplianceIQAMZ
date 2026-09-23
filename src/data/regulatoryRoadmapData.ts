@@ -186,7 +186,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
     ],
     recommendedTechStack: ['ServiceNow GRC / MetricStream', 'Palo Alto Prisma Cloud', 'Qualys VMDR'],
     primaryCompetencies: ['Certified Information Systems Auditor (CISA)', 'Cloud Security Architect', 'Federal Liaison Officer'],
-    officialUrl: 'https://www.cybersecurity.gov.ae/',
+    officialUrl: 'https://csc.gov.ae/',
     workstreams: [
       {
         category: 'infrastructure_tooling',
@@ -254,7 +254,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
     ],
     recommendedTechStack: ['OneTrust / Securiti.ai Consent Management', 'BigID Data Discovery'],
     primaryCompetencies: ['Statutory Data Protection Officer (DPO)', 'Privacy Legal Counsel'],
-    officialUrl: 'https://modee.gov.jo/',
+    officialUrl: 'https://www.modee.gov.jo/',
     workstreams: [
       {
         category: 'infrastructure_tooling',
@@ -322,7 +322,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
     ],
     recommendedTechStack: ['Hasin API Integration Service', 'Archer GRC / MetricStream', 'Veeam Immutable Backup'],
     primaryCompetencies: ['NCA Accredited Assessor', 'Enterprise Security Architect', 'GRC Director'],
-    officialUrl: 'https://nca.gov.sa/en/regulations-and-standards/ecc/',
+    officialUrl: 'https://www.nca.gov.sa//regulations-and-standards/ecc/',
     workstreams: [
       {
         category: 'infrastructure_tooling',
@@ -458,7 +458,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
     ],
     recommendedTechStack: ['OneTrust / Securiti Data Discovery', 'Cloudflare Sovereign Key Management'],
     primaryCompetencies: ['Omani Licensed DPO', 'Arabian Gulf Privacy Legal Counsel'],
-    officialUrl: 'https://mtcit.gov.om/',
+    officialUrl: 'https://www.mtcit.gov.om/',
     workstreams: [
       {
         category: 'infrastructure_tooling',
@@ -732,7 +732,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
     ],
     recommendedTechStack: ['AWS / Azure Kuwait Dedicated Local Zones', 'Thales CipherTrust Sovereign HSM', 'HashiCorp Vault Enterprise'],
     primaryCompetencies: ['Cloud Infrastructure Architect', 'Sovereign Encryption Engineer', 'CITRA Regulatory Consultant'],
-    officialUrl: 'https://citra.gov.kw/',
+    officialUrl: 'https://www.citra.gov.kw/',
     workstreams: [
       {
         category: 'infrastructure_tooling',
@@ -800,7 +800,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
     ],
     recommendedTechStack: ['Owl Cyber Defense Data Diodes', 'Claroty / Nozomi Networks OT Visibility', 'Fortinet Ruggedized Firewalls'],
     primaryCompetencies: ['Certified SCADA Security Architect', 'Industrial Control Systems Engineer', 'NCA OT Assessor'],
-    officialUrl: 'https://nca.gov.sa/en/regulations-and-standards/otcc/',
+    officialUrl: 'https://www.nca.gov.sa//regulations-and-standards/otcc/',
     workstreams: [
       {
         category: 'infrastructure_tooling',
@@ -938,7 +938,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
     ],
     recommendedTechStack: ['OneTrust / Securiti TIA Module', 'Symantec / Netskope Data Loss Prevention (DLP)'],
     primaryCompetencies: ['SDAIA Certified Data Protection Officer', 'International Privacy Counsel'],
-    officialUrl: 'https://dgp.sdaia.gov.sa/wps/portal/pdp/knowledgecenter/details/PDPL',
+    officialUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/Personal%20Data%20English%20V2-23April2023-%20Reviewed-.pdf',
     workstreams: [
       {
         category: 'infrastructure_tooling',
@@ -1074,7 +1074,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
     ],
     recommendedTechStack: ['Entrust Post-Quantum PKI', 'OpenSSL 3.4 PQC Providers', 'Thales Luna HSM PQC Firmware'],
     primaryCompetencies: ['Quantum-Safe Cryptographer', 'PKI Infrastructure Architect', 'CBB Compliance Lead'],
-    officialUrl: 'https://rulebook.cbb.gov.bh/',
+    officialUrl: 'https://www.cbb.gov.bh/laws-regulations/',
     workstreams: [
       {
         category: 'infrastructure_tooling',
@@ -1282,7 +1282,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
     ],
     recommendedTechStack: ['Anomali ThreatStream / Mandiant Threat Intel', 'Illumio Zero Trust Segmentation'],
     primaryCompetencies: ['Threat Intelligence Engineer', 'NCA Accredited Lead Assessor', 'Enterprise SOC Lead'],
-    officialUrl: 'https://nca.gov.sa/en/regulations-and-standards/cscc/',
+    officialUrl: 'https://www.nca.gov.sa//regulations-and-standards/cscc/',
     workstreams: [
       {
         category: 'infrastructure_tooling',
@@ -1488,7 +1488,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
     ],
     recommendedTechStack: ['Kratos Space Cyber Security Suite', 'ID Quantique Quantum Key Distribution', 'Rohde & Schwarz RF Analyzers'],
     primaryCompetencies: ['Satellite Communications Engineer', 'Space Cyber Specialist', 'CST Regulatory Counsel'],
-    officialUrl: 'https://cst.gov.sa/',
+    officialUrl: 'https://www.cst.gov.sa/',
     workstreams: [
       {
         category: 'infrastructure_tooling',
@@ -1626,7 +1626,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
     ],
     recommendedTechStack: ['Nozomi Networks Guardian', 'Dragos Platform Industrial Defense', 'Cisco Cyber Vision'],
     primaryCompetencies: ['SCADA Deep Packet Inspection Specialist', 'Industrial Zero Trust Architect', 'Plant Engineering Lead'],
-    officialUrl: 'https://nca.gov.sa/',
+    officialUrl: 'https://www.nca.gov.sa//',
     workstreams: [
       {
         category: 'infrastructure_tooling',

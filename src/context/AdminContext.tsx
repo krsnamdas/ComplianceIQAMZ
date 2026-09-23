@@ -180,6 +180,34 @@ export const INITIAL_USERS: UserProfile[] = [
   },
 ];
 
+export const GUEST_USER: UserProfile = {
+  id: 'guest',
+  username: 'guest',
+  name: 'Guest Officer',
+  email: 'guest@complianceiq.io',
+  role: 'guest',
+  roleLabel: 'Guest Visitor (Unauthenticated)',
+  isAdmin: false,
+  avatarInitials: 'GV',
+  jobTitle: 'Public Visitor',
+  organization: 'Public Regulatory Preview',
+  jurisdiction: 'MENAT Region',
+  countryFlag: '🌐',
+  status: 'active',
+  lastActive: 'Just now',
+  dateCreated: '2026-01-01',
+  permissions: {
+    canTriggerScraper: false,
+    canManageWatchlist: false,
+    canExportReports: false,
+    canEditControls: false,
+    canAccessAdminPanel: false,
+    canManageRegulations: false,
+    canToggleFeatures: false,
+    canManageUsers: false,
+  },
+};
+
 export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   regulatoryFeed: true,
   geminiCopilot: true,
@@ -204,8 +232,8 @@ export const DEFAULT_BROADCAST: SystemBroadcast = {
   title: 'Statutory Advisory',
   message:
     'SDAIA Cross-Border Data Transfer standard clauses mandatory registration audit cycle is in effect. Review statutory requirements and file SCC documentation.',
-  actionUrl: 'https://dgp.sdaia.gov.sa/wps/portal/pdp/knowledgecenter/details/PDPL',
-  actionLabel: 'View SDAIA PDP Platform',
+  actionUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/Personal%20Data%20English%20V2-23April2023-%20Reviewed-.pdf',
+  actionLabel: 'View SDAIA PDPL Official Law (PDF)',
   author: 'Tariq Al-Mansoor (Super Admin)',
   updatedAt: '2026-09-22 06:30 UTC',
 };
@@ -249,6 +277,8 @@ const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
 const STORAGE_KEYS = {
   USERS: 'complianceiq_users_v3',
   CURRENT_USER_ID: 'complianceiq_current_user_id_v3',
+  AUTH_STATE: 'complianceiq_auth_state_v3',
+  ADMIN_UNLOCKED: 'complianceiq_admin_unlocked_v3',
   FEATURE_FLAGS: 'complianceiq_feature_flags_v3',
   REGULATIONS: 'complianceiq_regulations_v3',
   COUNTRIES: 'complianceiq_countries_v3',
@@ -257,6 +287,17 @@ const STORAGE_KEYS = {
 };
 
 interface AdminContextType {
+  // Authentication & Guest State
+  isAuthenticated: boolean;
+  isGuest: boolean;
+  logout: () => void;
+  quickLoginAs: (userId: string) => void;
+
+  // Admin Security Gateway
+  isAdminUnlocked: boolean;
+  unlockAdmin: (password: string) => boolean;
+  lockAdmin: () => void;
+
   // User Management & IAM
   users: UserProfile[];
   currentUser: UserProfile;
@@ -306,6 +347,35 @@ interface AdminContextType {
   // Backup & Restore
   exportFullBackupJSON: () => void;
   importFullBackupJSON: (jsonString: string) => boolean;
+
+  // Automated Regulatory Link Reachability & PDF Integrity
+  linkAudits: Record<string, RegulatoryLinkAuditResult>;
+  isLinkAuditRunning: boolean;
+  lastLinkAuditTimestamp: string | null;
+  runLinkAudit: () => Promise<void>;
+  getLinkAudit: (regulationId: string, field: 'officialUrl' | 'documentPdfUrl') => RegulatoryLinkAuditResult | undefined;
+  fetchLinkAudits: () => void;
+}
+
+export interface RegulatoryLinkAuditResult {
+  id: string;
+  regulationId: string;
+  regulationCode: string;
+  regulationName: string;
+  countryId: string;
+  authority: string;
+  url: string;
+  field: 'officialUrl' | 'documentPdfUrl';
+  isPdf: boolean;
+  status: number;
+  statusText: string;
+  responseTimeMs: number;
+  isReachable: boolean;
+  isBroken: boolean;
+  isRedirect: boolean;
+  redirectUrl?: string;
+  lastChecked: string;
+  error?: string;
 }
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
@@ -322,6 +392,28 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return INITIAL_USERS;
   });
 
+  // Authentication State (default to false for public guest visitor)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.AUTH_STATE);
+      if (saved !== null) return saved === 'true';
+    } catch {
+      // ignore
+    }
+    return false; // Default to unauthenticated guest
+  });
+
+  // Admin Security Gateway Unlock State (requires entering admin password)
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEYS.ADMIN_UNLOCKED);
+      if (saved !== null) return saved === 'true';
+    } catch {
+      // ignore
+    }
+    return false;
+  });
+
   // Current User ID
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
     try {
@@ -330,11 +422,13 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {
       // ignore
     }
-    return 'ciadmin1'; // Default to Admin ciadmin1
+    return 'sasuser1'; // Default persona when authenticated
   });
 
-  const currentUser = users.find((u) => u.id === currentUserId) || users[0] || INITIAL_USERS[0];
-  const isCurrentUserAdmin = currentUser?.isAdmin || currentUser?.role === 'admin';
+  const activeUser = users.find((u) => u.id === currentUserId) || users[0] || INITIAL_USERS[0];
+  const currentUser = isAuthenticated ? activeUser : GUEST_USER;
+  const isGuest = !isAuthenticated;
+  const isCurrentUserAdmin = isAuthenticated && (currentUser.isAdmin || currentUser.role === 'admin');
 
   // 2. Feature Flags State
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(() => {
@@ -370,7 +464,33 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const saved = localStorage.getItem(STORAGE_KEYS.REGULATIONS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Self-healing migration for outdated cached URLs
+          return parsed.map((r: Regulation) => {
+            if (r.id === 'ksa-pdpl') {
+              return {
+                ...r,
+                officialUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/Personal%20Data%20English%20V2-23April2023-%20Reviewed-.pdf',
+                documentPdfUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/Personal%20Data%20English%20V2-23April2023-%20Reviewed-.pdf',
+              };
+            }
+            if (r.id === 'ksa-ai-ethics') {
+              return {
+                ...r,
+                officialUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/ai-ethics-principles-en.pdf',
+                documentPdfUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/ai-ethics-principles-en.pdf',
+              };
+            }
+            if (r.id === 'ksa-ecc') {
+              return {
+                ...r,
+                officialUrl: 'https://nca.gov.sa/sites/default/files/2021-10/ECC-1-2018-EN.pdf',
+                documentPdfUrl: 'https://nca.gov.sa/sites/default/files/2021-10/ECC-1-2018-EN.pdf',
+              };
+            }
+            return r;
+          });
+        }
       }
     } catch (e) {
       console.error('Error loading regulations:', e);
@@ -409,7 +529,19 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [broadcastBanner, setBroadcastBanner] = useState<SystemBroadcast>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.BROADCAST);
-      if (saved) return { ...DEFAULT_BROADCAST, ...JSON.parse(saved) };
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (
+          !parsed.actionUrl ||
+          parsed.actionUrl === 'https://sdaia.gov' ||
+          parsed.actionUrl === 'https://sdaia.gov.sa' ||
+          (parsed.actionUrl.includes('sdaia.gov') && !parsed.actionUrl.endsWith('.pdf'))
+        ) {
+          parsed.actionUrl = DEFAULT_BROADCAST.actionUrl;
+          parsed.actionLabel = DEFAULT_BROADCAST.actionLabel;
+        }
+        return { ...DEFAULT_BROADCAST, ...parsed };
+      }
     } catch {
       // ignore
     }
@@ -426,6 +558,51 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     return INITIAL_AUDIT_LOGS;
   });
+
+  // 6. Automated Regulatory Link & PDF Integrity State
+  const [linkAudits, setLinkAudits] = useState<Record<string, RegulatoryLinkAuditResult>>({});
+  const [isLinkAuditRunning, setIsLinkAuditRunning] = useState(false);
+  const [lastLinkAuditTimestamp, setLastLinkAuditTimestamp] = useState<string | null>(null);
+
+  const fetchLinkAudits = () => {
+    fetch('/api/admin/links/audit-status')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.audits) {
+          setLinkAudits(data.audits);
+          if (data.lastAuditTimestamp) {
+            setLastLinkAuditTimestamp(data.lastAuditTimestamp);
+          }
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchLinkAudits();
+  }, []);
+
+  const runLinkAudit = async () => {
+    setIsLinkAuditRunning(true);
+    try {
+      const res = await fetch('/api/admin/links/audit-run', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.audits) {
+          setLinkAudits(data.audits);
+          setLastLinkAuditTimestamp(data.lastAuditTimestamp || new Date().toISOString());
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to run link audit on backend:', e);
+    } finally {
+      setIsLinkAuditRunning(false);
+    }
+  };
+
+  const getLinkAudit = (regulationId: string, field: 'officialUrl' | 'documentPdfUrl'): RegulatoryLinkAuditResult | undefined => {
+    return linkAudits[`${regulationId}:${field}`];
+  };
 
   // Persistence Effects
   useEffect(() => {
@@ -541,8 +718,82 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, message: `Invalid password for ${target.username}. Use simple password "${expectedPassword}".` };
     }
     setCurrentUserId(target.id);
+    setIsAuthenticated(true);
+    try {
+      localStorage.setItem(STORAGE_KEYS.AUTH_STATE, 'true');
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, target.id);
+    } catch {
+      // ignore
+    }
+    if (target.isAdmin) {
+      setIsAdminUnlocked(true);
+      try {
+        sessionStorage.setItem(STORAGE_KEYS.ADMIN_UNLOCKED, 'true');
+      } catch {
+        // ignore
+      }
+    }
     addAuditLog('USER_SWITCHED', target.name, `User ${target.username} logged in with credentials.`);
     return { success: true, user: target };
+  };
+
+  const quickLoginAs = (userId: string) => {
+    const target = users.find((u) => u.id === userId);
+    if (target) {
+      setCurrentUserId(target.id);
+      setIsAuthenticated(true);
+      try {
+        localStorage.setItem(STORAGE_KEYS.AUTH_STATE, 'true');
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, target.id);
+      } catch {
+        // ignore
+      }
+      if (target.isAdmin) {
+        setIsAdminUnlocked(true);
+        try {
+          sessionStorage.setItem(STORAGE_KEYS.ADMIN_UNLOCKED, 'true');
+        } catch {
+          // ignore
+        }
+      }
+      addAuditLog('USER_SWITCHED', target.name, `Quick persona login as ${target.name}.`);
+    }
+  };
+
+  const logout = () => {
+    setIsAuthenticated(false);
+    setIsAdminUnlocked(false);
+    try {
+      localStorage.setItem(STORAGE_KEYS.AUTH_STATE, 'false');
+      sessionStorage.removeItem(STORAGE_KEYS.ADMIN_UNLOCKED);
+    } catch {
+      // ignore
+    }
+    addAuditLog('USER_SWITCHED', 'Session Ended', 'User logged out; returned to public guest mode.');
+  };
+
+  const unlockAdmin = (password: string): boolean => {
+    const clean = password.trim();
+    if (clean === 'ciadmin123' || clean === 'admin123' || (currentUser.isAdmin && clean === currentUser.password)) {
+      setIsAdminUnlocked(true);
+      try {
+        sessionStorage.setItem(STORAGE_KEYS.ADMIN_UNLOCKED, 'true');
+      } catch {
+        // ignore
+      }
+      addAuditLog('FEATURE_TOGGLED', 'Admin Console Gateway', 'Admin panel unlocked via local password authentication.');
+      return true;
+    }
+    return false;
+  };
+
+  const lockAdmin = () => {
+    setIsAdminUnlocked(false);
+    try {
+      sessionStorage.removeItem(STORAGE_KEYS.ADMIN_UNLOCKED);
+    } catch {
+      // ignore
+    }
   };
 
   const addUser = (userData: Omit<UserProfile, 'id' | 'dateCreated' | 'lastActive'>) => {
@@ -662,6 +913,25 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       newRegulation.code,
       `Created regulation "${newRegulation.name}" (${newRegulation.authority}, ${newRegulation.countryId.toUpperCase()}).`
     );
+
+    // Auto-register statutory URLs to weekly periodic scraper & link reachability daemon
+    fetch('/api/scraper/register-regulation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ regulation: newRegulation }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.success) {
+          addAuditLog(
+            'SCRAPER_SOURCE_ADDED',
+            newRegulation.code,
+            `Enrolled regulation statutory URL(s) to automated weekly scraping queue.`
+          );
+          fetchLinkAudits();
+        }
+      })
+      .catch((e) => console.warn('[AdminContext] Could not auto-register regulation with scraper:', e));
   };
 
   const updateRegulation = (id: string, updates: Partial<Regulation>) => {
@@ -688,12 +958,23 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setRegulations((prev) =>
       prev.map((reg) => {
         if (reg.id === id) {
-          return {
+          const updated = {
             ...reg,
             officialUrl,
             documentPdfUrl: documentPdfUrl || reg.documentPdfUrl,
             lastUpdated: new Date().toISOString().split('T')[0],
           };
+
+          // Auto-register updated statutory link with weekly scraper
+          fetch('/api/scraper/register-regulation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ regulation: updated }),
+          })
+            .then(() => fetchLinkAudits())
+            .catch(() => {});
+
+          return updated;
         }
         return reg;
       })
@@ -881,6 +1162,15 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <AdminContext.Provider
       value={{
+        isAuthenticated,
+        isGuest,
+        logout,
+        quickLoginAs,
+
+        isAdminUnlocked,
+        unlockAdmin,
+        lockAdmin,
+
         users,
         currentUser,
         isCurrentUserAdmin,
@@ -919,6 +1209,13 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         exportFullBackupJSON,
         importFullBackupJSON,
+
+        linkAudits,
+        isLinkAuditRunning,
+        lastLinkAuditTimestamp,
+        runLinkAudit,
+        getLinkAudit,
+        fetchLinkAudits,
       }}
     >
       {children}

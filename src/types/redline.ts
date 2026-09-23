@@ -6,7 +6,7 @@ export interface PolicyFinding {
   clauseReference: string;
   regulationControlCode: string;
   regulationControlTitle: string;
-  mandateLevel: 'Mandatory' | 'Recommended' | 'Conditional';
+  mandateLevel: 'Mandatory' | 'Recommended' | 'Conditional' | 'Guideline';
   regulatoryRequirementText: string;
   detectedPolicyText?: string;
   gapAnalysis: string;

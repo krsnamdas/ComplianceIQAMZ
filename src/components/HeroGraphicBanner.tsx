@@ -60,7 +60,7 @@ export const HeroGraphicBanner: React.FC<HeroGraphicBannerProps> = ({
 
           <div className="flex items-center space-x-2">
             <span className="hidden lg:inline px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] text-cyan-400 font-bold">
-              ZERO-HALLUCINATION TRUTH ENGINE
+              VERIFIED STATUTORY ENGINE
             </span>
             <button
               onClick={() => setIsMinimized(!isMinimized)}

@@ -444,7 +444,7 @@ export const ADDITIONAL_NEW_REGULATIONS: Regulation[] = [
     lastUpdated: '2022-01-15',
     scopeSummary: 'Codifies criminal liabilities for unauthorized data access, eavesdropping, digital sabotage, malware dissemination, and mandates telecommunications traffic data retention.',
     targetSectors: ['Government', 'Telco', 'Banking', 'Cloud & Hyperscalers', 'Retail & E-Commerce'],
-    officialUrl: 'https://majlis.ir/',
+    officialUrl: 'https://cbi.ir/default_en.aspx',
     controlStructure: {
       domainsCount: 6,
       subDomainsCount: 14,
@@ -566,7 +566,7 @@ export const ADDITIONAL_NEW_REGULATIONS: Regulation[] = [
     lastUpdated: '2021-02-18',
     scopeSummary: 'Official legislative instrument penalizing illegal system intrusions, electronic fraud, ransomware attacks, and mandating technical cooperation with public prosecutors.',
     targetSectors: ['Government', 'Banking', 'Telco', 'Retail & E-Commerce'],
-    officialUrl: 'https://www.mtit.pna.ps/',
+    officialUrl: 'https://www.pma.ps/en/',
     controlStructure: {
       domainsCount: 4,
       subDomainsCount: 10,
@@ -608,7 +608,7 @@ export const ADDITIONAL_NEW_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-01-20',
     scopeSummary: 'Statutory framework establishing severe criminal penalties for unauthorized interception, ransomware deployment, identity theft, and critical public infrastructure sabotage.',
     targetSectors: ['Government', 'Banking', 'Telco', 'Utilities', 'Power & Energy'],
-    officialUrl: 'https://www.nans.gov.sy/',
+    officialUrl: 'https://moct.gov.sy/',
     controlStructure: {
       domainsCount: 4,
       subDomainsCount: 12,
@@ -650,7 +650,7 @@ export const ADDITIONAL_NEW_REGULATIONS: Regulation[] = [
     lastUpdated: '2022-08-10',
     scopeSummary: 'Standards mandating end-to-end encryption for electronic wallets, two-factor authentication, SWIFT Customer Security Programme (CSP) compliance, and audit logging.',
     targetSectors: ['Banking', 'Payments', 'Fintech', 'Telco'],
-    officialUrl: 'https://centralbankyemen.org/',
+    officialUrl: 'https://cby-ye.com/',
     controlStructure: {
       domainsCount: 4,
       subDomainsCount: 11,
@@ -774,7 +774,7 @@ export const ADDITIONAL_NEW_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-06-15',
     scopeSummary: 'Comprehensive legislative instrument defining penalties for illicit network interception, ransomware, state database tampering, and digital extortion.',
     targetSectors: ['Government', 'Banking', 'Oil & Gas', 'Telco', 'Utilities'],
-    officialUrl: 'https://gaci.gov.ly/',
+    officialUrl: 'https://cbl.gov.ly/en/',
     controlStructure: {
       domainsCount: 4,
       subDomainsCount: 11,
@@ -856,7 +856,7 @@ export const ADDITIONAL_NEW_REGULATIONS: Regulation[] = [
     lastUpdated: '2023-05-11',
     scopeSummary: 'Establishes the APDP and defines lawful processing grounds, data subject access and rectification rights, and prior authorization mechanisms for cross-border data transfers.',
     targetSectors: ['Banking', 'Telco', 'Government', 'Mining & Extraction', 'Retail & E-Commerce', 'Digital Tech Startups'],
-    officialUrl: 'https://apdp.mr/',
+    officialUrl: 'https://www.tic.gov.mr/',
     controlStructure: {
       domainsCount: 5,
       subDomainsCount: 13,
