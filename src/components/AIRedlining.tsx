@@ -26,6 +26,7 @@ import { Regulation } from '../types/regulatory';
 import { RedlineAnalysisResult, PolicyFinding, DraftPolicyPreset } from '../types/redline';
 import { DRAFT_POLICY_PRESETS } from '../data/redlinePresets';
 import { analyzePolicyAgainstRegulation } from '../utils/redlineEngine';
+import { useAdmin } from '../context/AdminContext';
 
 interface AIRedliningProps {
   regulations: Regulation[];
@@ -38,6 +39,8 @@ export const AIRedlining: React.FC<AIRedliningProps> = ({
   onNavigateToRegulation,
   onInterpretControl,
 }) => {
+  const { addAuditLog } = useAdmin();
+
   // Input Form State
   const [policyDraftText, setPolicyDraftText] = useState<string>(DRAFT_POLICY_PRESETS[0].policyDraftText);
   const [policyName, setPolicyName] = useState<string>(DRAFT_POLICY_PRESETS[0].name);
@@ -91,6 +94,8 @@ export const AIRedlining: React.FC<AIRedliningProps> = ({
     setIsAnalyzing(true);
 
     try {
+      let finalResult: RedlineAnalysisResult;
+
       // First attempt backend API call with Gemini enhancement
       const res = await fetch('/api/ai/redline', {
         method: 'POST',
@@ -103,16 +108,23 @@ export const AIRedlining: React.FC<AIRedliningProps> = ({
       });
 
       if (res.ok) {
-        const data: RedlineAnalysisResult = await res.json();
-        setAnalysisResult(data);
+        finalResult = await res.json();
       } else {
         // Fallback to client-side engine
-        const fallback = analyzePolicyAgainstRegulation({
+        finalResult = analyzePolicyAgainstRegulation({
           policyDraftText,
           policyName: policyName || 'Uploaded Internal Policy',
           regulation: selectedRegulation,
         });
-        setAnalysisResult(fallback);
+      }
+      setAnalysisResult(finalResult);
+
+      if (addAuditLog) {
+        addAuditLog(
+          'POLICY_REDLINING',
+          `${finalResult.policyName} vs ${selectedRegulation.code}`,
+          `Executed AI policy redlining audit against ${selectedRegulation.name}. Score: ${finalResult.summary.overallComplianceScore}% (${finalResult.summary.complianceGrade}), ${finalResult.findings.length} findings (${finalResult.summary.missingClausesCount} missing, ${finalResult.summary.nonCompliantCount} non-compliant).`
+        );
       }
     } catch (err) {
       console.warn('[AI Redline] Falling back to local deterministic analysis engine:', err);
@@ -122,6 +134,14 @@ export const AIRedlining: React.FC<AIRedliningProps> = ({
         regulation: selectedRegulation,
       });
       setAnalysisResult(fallback);
+
+      if (addAuditLog) {
+        addAuditLog(
+          'POLICY_REDLINING',
+          `${fallback.policyName} vs ${selectedRegulation.code}`,
+          `Executed local AI policy redlining audit against ${selectedRegulation.name}. Score: ${fallback.summary.overallComplianceScore}% (${fallback.summary.complianceGrade}), ${fallback.findings.length} findings.`
+        );
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -137,6 +157,14 @@ export const AIRedlining: React.FC<AIRedliningProps> = ({
   // Download Redlined Policy Markdown
   const handleDownloadMarkdown = () => {
     if (!analysisResult) return;
+
+    if (addAuditLog) {
+      addAuditLog(
+        'REGULATORY_DOWNLOAD',
+        `Redline Report: ${analysisResult.policyName}`,
+        `Downloaded markdown redline audit report benchmarked against ${analysisResult.selectedRegulationCode} (${analysisResult.selectedRegulationName}).`
+      );
+    }
     const content = `# COMPLIANCEIQ AI REDLINE AUDIT REPORT
 Policy: ${analysisResult.policyName}
 Benchmark Regulation: ${analysisResult.selectedRegulationName} (${analysisResult.selectedRegulationCode})

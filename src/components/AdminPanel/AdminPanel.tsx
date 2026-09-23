@@ -34,6 +34,7 @@ export type AdminSubTab =
   | 'features'
   | 'users'
   | 'broadcast'
+  | 'activity_log'
   | 'audit'
   | 'backup';
 
@@ -355,15 +356,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
           </button>
 
           <button
-            onClick={() => setActiveSubTab('audit')}
+            onClick={() => setActiveSubTab('activity_log')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'audit'
+              activeSubTab === 'activity_log' || activeSubTab === 'audit'
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'bg-slate-950/60 hover:bg-slate-800 text-slate-300 hover:text-white'
             }`}
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>Audit Trail ({auditLogs.length})</span>
+            <span>Activity Log &amp; Audit Trail ({auditLogs.length})</span>
           </button>
 
           <button
@@ -388,7 +389,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
         {activeSubTab === 'features' && <FeatureTogglesTab />}
         {activeSubTab === 'users' && <UserManagementTab />}
         {activeSubTab === 'broadcast' && <BroadcastBannerTab />}
-        {activeSubTab === 'audit' && <AuditTrailTab />}
+        {(activeSubTab === 'activity_log' || activeSubTab === 'audit') && <AuditTrailTab />}
         {activeSubTab === 'backup' && <SystemBackupTab />}
       </div>
     </div>

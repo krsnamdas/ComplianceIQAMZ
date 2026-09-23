@@ -39,7 +39,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   initialSelectedRegulationIds,
 }) => {
   const { canExportReports, triggerRestrictedAction, setRole } = useRBAC();
-  const { regulations } = useAdmin();
+  const { regulations, addAuditLog } = useAdmin();
 
   // Primary Export Format: PDF Compliance Report, CSV, or JSON
   const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'csv' | 'json'>('pdf');
@@ -243,6 +243,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           const filename = `ComplianceIQ_Report_${selectedRegulations.length}Regs_${timestamp}.pdf`;
           doc.save(filename);
 
+          if (addAuditLog) {
+            addAuditLog(
+              'REGULATORY_DOWNLOAD',
+              `${selectedRegulations.length} Regulations (${filename})`,
+              `Downloaded formal compliance PDF report containing: ${selectedRegulations.map((r) => r.code).join(', ')}. Scope: ${selectedRegulations.map((r) => r.countryId.toUpperCase()).join(', ')}.`
+            );
+          }
+
           setIsExporting(false);
           setExportStatusMessage('PDF report downloaded successfully!');
           setTimeout(() => {
@@ -378,6 +386,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       downloadAnchor.click();
       downloadAnchor.remove();
       URL.revokeObjectURL(url);
+    }
+
+    if (addAuditLog) {
+      addAuditLog(
+        'REGULATORY_DOWNLOAD',
+        `${sourceRegs.length} Regulations (${selectedFormat.toUpperCase()} Controls Matrix)`,
+        `Exported ${selectedFormat.toUpperCase()} controls matrix (${exportRows.length} statutory clauses) for ${sourceRegs.map((r) => r.code).slice(0, 5).join(', ')}${sourceRegs.length > 5 ? '...' : ''}.`
+      );
     }
 
     setTimeout(() => {

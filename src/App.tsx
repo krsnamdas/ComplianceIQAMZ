@@ -51,7 +51,7 @@ import { Search, Filter, Shield, Globe2, BookOpen, Layers, CheckCircle2, AlertCi
 
 export default function App() {
   const { canManageWatchlist, canTriggerScraper, triggerRestrictedAction } = useRBAC();
-  const { regulations, featureFlags, isAuthenticated } = useAdmin();
+  const { regulations, featureFlags, isAuthenticated, addAuditLog } = useAdmin();
 
   const [activeTab, setActiveTab] = useState<NavigationTab>('overview');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -360,6 +360,14 @@ export default function App() {
       const res = await fetch('/api/scraper/run', { method: 'POST' });
       if (!res.ok) throw new Error('Scraper trigger returned error');
       const data = await res.json();
+
+      if (addAuditLog) {
+        addAuditLog(
+          'SCRAPER_TRIGGERED',
+          '24 MENAT Jurisdictions',
+          `Executed automated scraper crawler probe across 24 sovereign gazettes. Verified ${data.checkedSources || 'all'} official sources.`
+        );
+      }
 
       setAlertMessage({
         type: 'success',

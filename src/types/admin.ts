@@ -86,7 +86,10 @@ export interface AuditLogEntry {
     | 'BACKUP_RESTORED'
     | 'REGULATIONS_RESET'
     | 'SCRAPER_SOURCE_ADDED'
-    | 'LINK_AUDIT_TRIGGERED';
+    | 'SCRAPER_TRIGGERED'
+    | 'LINK_AUDIT_TRIGGERED'
+    | 'REGULATORY_DOWNLOAD'
+    | 'POLICY_REDLINING';
   targetEntity: string;
   details: string;
 }

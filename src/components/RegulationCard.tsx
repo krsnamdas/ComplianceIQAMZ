@@ -67,7 +67,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
   onRedlinePolicy,
 }) => {
   const { canManageWatchlist } = useRBAC();
-  const { getLinkAudit } = useAdmin();
+  const { getLinkAudit, addAuditLog } = useAdmin();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showUrgencyBreakdown, setShowUrgencyBreakdown] = useState(false);
@@ -698,6 +698,15 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                     href={regulation.documentPdfUrl}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => {
+                      if (addAuditLog) {
+                        addAuditLog(
+                          'REGULATORY_DOWNLOAD',
+                          `${regulation.code} Official PDF`,
+                          `Accessed / downloaded official sovereign PDF gazette for ${regulation.name} (${regulation.authority}, ${countryName}).`
+                        );
+                      }
+                    }}
                     className={`px-2.5 py-1 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border flex items-center space-x-1.5 transition-colors ${
                       isPdfBroken
                         ? 'border-amber-500/50 hover:border-amber-500'
