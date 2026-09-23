@@ -1,0 +1,122 @@
+EXCEPTION  | http://0.0.0.0:${PORT} | nonnumeric port: '${PORT}' | Used in: ./server.ts
+URL_ERROR  | http://banquecentrale.gov.sy/ | [Errno -2] Name or service not known | Used in: ./src/data/scraperSourcesData.ts
+URL_ERROR  | http://www.inpdp.nat.tn/ | [Errno -3] Temporary failure in name resolution | Used in: ./src/data/additionalRegulations.ts
+HTTP_503   | http://www.legislation.tn/ | Service Unavailable | Used in: ./src/data/additionalRegulations.ts
+HTTP_403   | https://ai.gov.ae/ | Forbidden | Used in: ./src/data/menatData.ts, ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://anpdp.dz/ | OK -> https://anpdp.dz/ar/ | Used in: ./src/data/scraperSourcesData.ts
+       200 | https://ansie.dj/ | OK | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+URL_ERROR  | https://apdp.mr/ | [Errno -2] Name or service not known | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+URL_ERROR  | https://authority.gov.sa/files/regulation.pdf | [Errno -2] Name or service not known | Used in: ./src/components/AdminPanel/RegulationEditorTab.tsx
+URL_ERROR  | https://authority.gov.sa/regulations/ | [Errno -2] Name or service not known | Used in: ./src/components/AdminPanel/RegulationEditorTab.tsx
+URL_ERROR  | https://authority.gov.xx/regulations | [Errno -2] Name or service not known | Used in: ./src/components/TrackedSourcesManager.tsx
+URL_ERROR  | https://authority.gov/ | [Errno -2] Name or service not known | Used in: ./src/components/AdminPanel/RegulationEditorTab.tsx
+URL_ERROR  | https://authority.gov/file.pdf | [Errno -2] Name or service not known | Used in: ./src/components/AdminPanel/RegulationEditorTab.tsx
+       200 | https://banque-centrale.dj/ | OK | Used in: ./src/data/scraperSourcesData.ts
+       200 | https://btk.gov.tr | OK | Used in: ./src/data/groundedNewsData.ts
+HTTP_403   | https://cbb.gov.bh | Forbidden | Used in: ./src/data/groundedNewsData.ts
+URL_ERROR  | https://cbddo.gov.tr/en/projects/bigr/ | timed out | Used in: ./src/data/menatData.ts, ./src/data/scraperSourcesData.ts, ./src/data/versionDiffsData.ts
+       200 | https://cbi.iq/ | OK | Used in: ./src/data/additionalRegulations.ts, ./src/data/scraperSourcesData.ts
+URL_ERROR  | https://cbi.ir/default_en.aspx | _ssl.c:990: The handshake operation timed out | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+URL_ERROR  | https://cbiko.gov.tr/ | [Errno -3] Temporary failure in name resolution | Used in: ./src/data/regulatoryTimelineData.ts
+       200 | https://cbl.gov.ly/en/ | OK | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://cbo.gov.om/ | OK | Used in: ./src/data/additionalRegulations.ts, ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://cbos.gov.sd/en | OK | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+HTTP_403   | https://centralbank.ae | Forbidden | Used in: ./server.ts, ./src/data/groundedNewsData.ts
+HTTP_403   | https://centralbank.gov.so/ | Forbidden | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+URL_ERROR  | https://centralbankyemen.org/ | [Errno -2] Name or service not known | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://citra.gov.kw/ | OK -> https://www.citra.gov.kw/sites/ar/Pages/Home.aspx | Used in: ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts
+HTTP_404   | https://citra.gov.kw/sites/en/Pages/CloudComputing.aspx | Not Found | Used in: ./src/data/additionalRegulations.ts
+       200 | https://citra.gov.kw/sites/en/Pages/CyberSecurity.aspx | OK -> https://WWW.CITRA.GOV.KW/sites/en/Pages/CyberSecurity.aspx | Used in: ./src/data/menatData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://cmc.iq/ | OK | Used in: ./src/data/additionalRegulations.ts
+EXCEPTION  | https://compliance.qcert.org/en/data-privacy | Remote end closed connection without response | Used in: ./src/data/menatData.ts
+URL_ERROR  | https://csc.gov.ae | [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1007) | Used in: ./server.ts
+       200 | https://cst.gov.sa/ | OK -> https://www.cst.gov.sa/ | Used in: ./src/data/regulatoryRoadmapData.ts
+       200 | https://desc.gov.ae | OK -> https://www.desc.gov.ae/ | Used in: ./server.ts, ./src/data/groundedNewsData.ts
+       200 | https://fra.gov.eg/ | OK | Used in: ./src/data/additionalRegulations.ts
+URL_ERROR  | https://gaci.gov.ly/ | [Errno -2] Name or service not known | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://kvkk.gov.tr/ | OK -> https://www.kvkk.gov.tr/ | Used in: ./src/data/regulatoryTimelineData.ts
+URL_ERROR  | https://laws.boe.gov.sa/BoeLaws/Laws/LawDetails/25e656d0-449e-4c57-897b-a9a700f1883e/1 | timed out | Used in: ./src/data/additionalRegulations.ts
+URL_ERROR  | https://majlis.ir/ | [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1007) | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://mcit.gov.eg | OK | Used in: ./src/data/groundedNewsData.ts
+       200 | https://mcit.gov.eg/en/Regulations/Laws/Personal_Data_Protection_Law | OK | Used in: ./src/data/menatData.ts
+       200 | https://mcit.gov.eg/en/Regulations_and_Policies/Laws | OK | Used in: ./src/data/additionalRegulations.ts
+       200 | https://modee.gov.jo/ | OK -> https://modee.gov.jo/Default/Ar | Used in: ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts
+       200 | https://mtcit.gov.om/ | OK | Used in: ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts
+URL_ERROR  | https://nca.gov.sa | timed out | Used in: ./server.ts, ./src/components/GeminiComplianceChatbot.tsx, ./src/data/groundedNewsData.ts
+URL_ERROR  | https://nca.gov.sa/ | timed out | Used in: ./src/data/regulatoryRoadmapData.ts
+URL_ERROR  | https://nca.gov.sa/en/regulations-and-standards/ | timed out | Used in: ./src/data/menatData.ts
+URL_ERROR  | https://nca.gov.sa/en/regulations-and-standards/ccc/ | timed out | Used in: ./src/data/menatData.ts
+URL_ERROR  | https://nca.gov.sa/en/regulations-and-standards/cscc/ | timed out | Used in: ./src/data/additionalRegulations.ts, ./src/data/regulatoryRoadmapData.ts
+URL_ERROR  | https://nca.gov.sa/en/regulations-and-standards/dcc/ | timed out | Used in: ./src/data/additionalRegulations.ts
+URL_ERROR  | https://nca.gov.sa/en/regulations-and-standards/ecc/ | timed out | Used in: ./src/data/menatData.ts, ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts, ./src/data/scraperSourcesData.ts
+URL_ERROR  | https://nca.gov.sa/en/regulations-and-standards/otcc/ | timed out | Used in: ./src/data/menatData.ts, ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts
+URL_ERROR  | https://nca.gov.sa/files/ccc-en.pdf | timed out | Used in: ./src/data/menatData.ts
+URL_ERROR  | https://nca.gov.sa/files/ecc-en.pdf | timed out | Used in: ./src/data/menatData.ts
+       200 | https://nca.gov.so/ | OK | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://ncsc.gov.bh/ | OK | Used in: ./src/data/scraperSourcesData.ts
+HTTP_404   | https://ncsc.jo/en | Not Found | Used in: ./src/data/additionalRegulations.ts, ./src/data/menatData.ts, ./src/data/scraperSourcesData.ts, ./src/data/versionDiffsData.ts
+URL_ERROR  | https://official-portal.gov/circular-102.pdf | [Errno -2] Name or service not known | Used in: ./src/components/AdminPanel/BroadcastBannerTab.tsx
+       200 | https://presidence.dj/ | OK | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+URL_ERROR  | https://ptc.gov.ye/ | timed out | Used in: ./src/data/scraperSourcesData.ts
+       200 | https://qcb.gov.qa | OK -> https://qcb.gov.qa/en/Pages/default.aspx | Used in: ./src/data/groundedNewsData.ts
+URL_ERROR  | https://rulebook.cbb.gov.bh/ | [Errno -2] Name or service not known | Used in: ./src/data/additionalRegulations.ts, ./src/data/menatData.ts, ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts, ./src/data/scraperSourcesData.ts, ./src/data/versionDiffsData.ts
+       200 | https://sdaia.gov.sa | OK -> https://sdaia.gov.sa/ar/default.aspx | Used in: ./server.ts, ./src/components/GeminiComplianceChatbot.tsx, ./src/data/groundedNewsData.ts
+       200 | https://sdaia.gov.sa/ | OK -> https://sdaia.gov.sa/ar/default.aspx | Used in: ./src/data/regulatoryRoadmapData.ts
+HTTP_404   | https://sdaia.gov.sa/en/Research/Pages/ai-principles.aspx | Not Found | Used in: ./src/data/menatData.ts
+HTTP_404   | https://sdaia.gov.sa/en/SDAIA/about/Pages/PersonalDataProtectionLaw.aspx | Not Found | Used in: ./src/context/AdminContext.tsx, ./src/data/menatData.ts, ./src/data/regulatoryTimelineData.ts, ./src/data/scraperSourcesData.ts, ./src/data/versionDiffsData.ts
+HTTP_404   | https://sdaia.gov.sa/files/PDPL-en.pdf | NOT FOUND | Used in: ./src/data/menatData.ts
+       200 | https://spk.gov.tr/ | OK | Used in: ./src/data/menatData.ts, ./src/data/regulatoryTimelineData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://tpra.gov.sd/ | OK | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://tra.gov.eg/en/ | OK -> https://www.tra.gov.eg/en/ | Used in: ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts
+       200 | https://tra.gov.om | OK | Used in: ./src/data/groundedNewsData.ts
+       200 | https://u.ae/ | OK | Used in: ./src/data/regulatoryRoadmapData.ts
+       200 | https://u.ae/en/about-the-uae/digital-uae/data/data-protection-laws | OK | Used in: ./src/data/additionalRegulations.ts, ./src/data/menatData.ts, ./src/data/regulatoryTimelineData.ts, ./src/data/scraperSourcesData.ts, ./src/data/versionDiffsData.ts
+HTTP_404   | https://www.adgm.com/financial-services-regulatory-authority/virtual-asset-activities | Not Found | Used in: ./src/data/menatData.ts
+URL_ERROR  | https://www.almeezan.qa/LawView.aspx?opt&LawID=6353 | timed out | Used in: ./src/data/additionalRegulations.ts
+URL_ERROR  | https://www.anci.tn/ | [Errno -2] Name or service not known | Used in: ./src/data/menatData.ts
+URL_ERROR  | https://www.ansi.tn/en | [Errno -2] Name or service not known | Used in: ./src/data/scraperSourcesData.ts
+       200 | https://www.bcm.mr/ | OK | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+HTTP_500   | https://www.bct.gov.tn/ | Internal Server Error | Used in: ./src/data/regulatoryTimelineData.ts
+       200 | https://www.bddk.org.tr/Mevzuat/DokumanGetir/986 | OK | Used in: ./src/data/menatData.ts
+HTTP_403   | https://www.bdl.gov.lb/ | Forbidden | Used in: ./src/data/additionalRegulations.ts, ./src/data/scraperSourcesData.ts
+HTTP_403   | https://www.bkam.ma/ | Forbidden | Used in: ./src/data/additionalRegulations.ts
+       200 | https://www.boi.org.il/en/ | OK | Used in: ./src/data/scraperSourcesData.ts
+       200 | https://www.boi.org.il/en/banking-supervision/directives/ | OK | Used in: ./src/data/regulatoryTimelineData.ts
+HTTP_404   | https://www.cbe.org.eg/en/regulations | Not Found | Used in: ./src/data/menatData.ts, ./src/data/scraperSourcesData.ts
+HTTP_404   | https://www.cbj.gov.jo/en | Not Found | Used in: ./src/data/scraperSourcesData.ts
+       200 | https://www.cbk.gov.kw/ | OK -> https://www.cbk.gov.kw/default | Used in: ./src/data/regulatoryTimelineData.ts
+HTTP_404   | https://www.cbk.gov.kw/en/legislation-and-regulation |  | Used in: ./src/data/scraperSourcesData.ts
+HTTP_404   | https://www.cbk.gov.kw/en/legislation-and-regulation/regulatory-framework/ |  | Used in: ./src/data/additionalRegulations.ts
+HTTP_403   | https://www.centralbank.ae/ | Forbidden | Used in: ./src/data/regulatoryRoadmapData.ts
+HTTP_403   | https://www.centralbank.ae/en/regulations-and-standards/ | Forbidden | Used in: ./src/data/menatData.ts, ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts, ./src/data/scraperSourcesData.ts
+TIMEOUT    | https://www.cndp.ma/ | Timed out after 3s | Used in: ./src/data/additionalRegulations.ts, ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts
+       200 | https://www.cndp.ma/en/ | OK | Used in: ./src/data/scraperSourcesData.ts
+       200 | https://www.cst.gov.sa/en/Pages/default.aspx | OK -> https://www.cst.gov.sa/en | Used in: ./src/data/scraperSourcesData.ts
+HTTP_404   | https://www.cst.gov.sa/en/mediacenter/pressreleases/Pages/2023022101.aspx | Not Found | Used in: ./src/data/menatData.ts
+HTTP_308   | https://www.cst.gov.sa/en/rules_and_regulations/ | Permanent Redirect | Used in: ./src/data/additionalRegulations.ts
+URL_ERROR  | https://www.cybersecurity.gov.ae/ | [Errno -2] Name or service not known | Used in: ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts
+HTTP_404   | https://www.desc.gov.ae/en/ | Not Found | Used in: ./src/data/scraperSourcesData.ts
+HTTP_404   | https://www.desc.gov.ae/standards-and-policies/ | Not Found | Used in: ./src/data/menatData.ts
+URL_ERROR  | https://www.dgssi.gov.ma/fr | timed out | Used in: ./src/data/menatData.ts, ./src/data/scraperSourcesData.ts
+HTTP_429   | https://www.difc.ae/business/laws-regulations/data-protection/ | Too Many Requests | Used in: ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts
+       200 | https://www.doh.gov.ae/en/programs-initiatives/adhics | OK -> https://www.doh.gov.ae/404?item=%2fprograms-initiatives%2fadhics&user=extranet%5cAnonymous&site=website | Used in: ./src/data/additionalRegulations.ts
+       200 | https://www.gcc-sg.org/ | OK -> https://www.gcc-sg.org/ar/Pages/default.aspx | Used in: ./src/data/regulatoryRoadmapData.ts
+HTTP_403   | https://www.gov.il/en/departments/israel_national_cyber_directorate | Forbidden | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+HTTP_403   | https://www.gov.il/en/departments/the_privacy_protection_authority | Forbidden | Used in: ./src/data/expandedCountriesData.ts, ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://www.joradp.dz/ | OK | Used in: ./src/data/additionalRegulations.ts
+       200 | https://www.justice.gov.lb/ | OK | Used in: ./src/data/additionalRegulations.ts
+       200 | https://www.kvkk.gov.tr/en/ | OK -> http://www.kvkk.gov.tr/en | Used in: ./src/data/menatData.ts, ./src/data/scraperSourcesData.ts, ./src/data/versionDiffsData.ts
+HTTP_500   | https://www.mjustice.dz/ | Internal Server Error | Used in: ./src/data/additionalRegulations.ts
+       200 | https://www.modee.gov.jo/ | OK -> https://www.modee.gov.jo/Default/Ar | Used in: ./src/data/additionalRegulations.ts
+       200 | https://www.mtcit.gov.om/ | OK | Used in: ./src/data/additionalRegulations.ts, ./src/data/menatData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://www.mtit.pna.ps/ | OK | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+URL_ERROR  | https://www.nans.gov.sy/ | [Errno -2] Name or service not known | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://www.ncsa.gov.qa/en/regulations-standards | OK | Used in: ./src/data/menatData.ts, ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts, ./src/data/scraperSourcesData.ts, ./src/data/versionDiffsData.ts
+       200 | https://www.pdp.gov.bh/ | OK | Used in: ./src/data/additionalRegulations.ts
+       200 | https://www.pma.ps/en/ | OK | Used in: ./src/data/expandedCountriesData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://www.qcb.gov.qa/ | OK -> https://www.qcb.gov.qa/en/Pages/default.aspx | Used in: ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts
+       200 | https://www.qcb.gov.qa/English/Legislation/ | OK -> https://www.qcb.gov.qa/en/pages/error.aspx | Used in: ./src/data/additionalRegulations.ts
+       200 | https://www.qcb.gov.qa/en/Pages/default.aspx | OK | Used in: ./src/data/scraperSourcesData.ts
+       200 | https://www.sama.gov.sa/en-US/Laws/Pages/CyberSecurityRules.aspx | OK | Used in: ./src/data/menatData.ts, ./src/data/regulatoryRoadmapData.ts, ./src/data/regulatoryTimelineData.ts, ./src/data/scraperSourcesData.ts
+       200 | https://www.tra.gov.eg/en/ | OK | Used in: ./src/data/scraperSourcesData.ts
+HTTP_404   | https://www.vara.ae/en/regulations/rulebooks/ | Not Found | Used in: ./src/data/additionalRegulations.ts
