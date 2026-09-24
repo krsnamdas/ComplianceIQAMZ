@@ -30,9 +30,12 @@ import {
   ExternalLink,
   Link2,
   ArrowRight,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useRBAC } from '../context/RBACContext';
 import { useAdmin } from '../context/AdminContext';
+import { useTheme } from '../context/ThemeContext';
 import { UserAccountSwitcher } from './UserAccountSwitcher';
 import { ComplianceIQLogo } from './ComplianceIQLogo';
 import { ScraperStatus } from '../types/regulatory';
@@ -102,6 +105,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { canTriggerScraper, triggerRestrictedAction } = useRBAC();
   const { featureFlags, isCurrentUserAdmin, isAuthenticated, linkSuggestions = [] } = useAdmin();
+  const { brightMode, toggleBrightMode } = useTheme();
 
   // Active open dropdown in desktop menu
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -134,10 +138,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       return;
     }
     onTriggerScrape();
-  };
-
-  const handleExportClick = () => {
-    onOpenExport();
   };
 
   // Define hierarchical menu categories
@@ -347,7 +347,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 text-white shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between gap-3 h-16">
           {/* Logo & Platform Name */}
           <div
             className="flex items-center space-x-3 cursor-pointer shrink-0"
@@ -364,21 +364,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                   Advisory
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-medium hidden sm:block">
+              <p className="text-xs text-slate-400 font-medium hidden 2xl:block">
                 Middle East, North Africa &amp; Türkiye Regulations &amp; Controls
               </p>
             </div>
           </div>
 
           {/* Desktop Hierarchical Dropdown Navigation */}
-          <nav ref={navRef} className="hidden lg:flex items-center space-x-1.5 relative">
-            {menuGroups.map((group) => {
+          <nav ref={navRef} className="hidden xl:flex items-center justify-center flex-1 space-x-1 relative px-2">
+            {menuGroups.map((group, groupIndex) => {
               const active = isGroupActive(group);
               const isOpen = openDropdown === group.id;
               const GroupIcon = group.icon;
               const visibleItems = group.items.filter((item) => item.enabled !== false);
 
               if (visibleItems.length === 0) return null;
+
+              // Anchor the last group's dropdown to the right so its wide panel
+              // never clips off the right edge of the viewport.
+              const isLastGroup = groupIndex >= menuGroups.length - 2;
 
               return (
                 <div
@@ -422,7 +426,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {/* Hierarchical Dropdown Menu */}
                   {isOpen && (
                     <div
-                      className="absolute left-0 mt-1 w-80 sm:w-96 rounded-xl bg-slate-900 border border-slate-700/80 shadow-2xl z-50 p-2 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-150"
+                      className={`absolute ${isLastGroup ? 'right-0' : 'left-0'} mt-1 w-80 sm:w-96 rounded-xl bg-slate-900 border border-slate-700/80 shadow-2xl z-50 p-2 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-150`}
                       role="menu"
                     >
                       {/* Menu Header with Category Hint */}
@@ -517,6 +521,32 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Action Buttons & Simulated IAM User Switcher */}
           <div className="flex items-center space-x-2 shrink-0">
+            {/* Brighter Display Mode Toggle */}
+            <button
+              type="button"
+              onClick={toggleBrightMode}
+              role="switch"
+              aria-checked={brightMode}
+              aria-label={brightMode ? 'Switch to standard display' : 'Switch to brighter display'}
+              title={brightMode ? 'Brighter mode: ON — click for standard view' : 'Brighter mode: OFF — click for a brighter view'}
+              className={`relative flex items-center h-8 w-[52px] rounded-full border transition-colors duration-300 cursor-pointer shrink-0 ${
+                brightMode
+                  ? 'bg-amber-400/20 border-amber-400/50'
+                  : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
+              }`}
+            >
+              {/* Sliding knob */}
+              <span
+                className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 rounded-full shadow-md transition-all duration-300 ${
+                  brightMode
+                    ? 'left-[22px] bg-amber-300 text-amber-900'
+                    : 'left-1 bg-slate-600 text-slate-200'
+                }`}
+              >
+                {brightMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+              </span>
+            </button>
+
             {/* User Account Switcher Dropdown or Guest Sign In */}
             {!isAuthenticated ? (
               <button
@@ -863,9 +893,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </span>
                 </button>
 
-                {/* Scraper status indicator badge */}
+                {/* Scraper status indicator badge (only on very wide screens to avoid crowding) */}
                 <div
-                  className="hidden xl:flex items-center space-x-1 px-2 py-1 rounded-md bg-slate-900/90 border border-slate-800 text-[10px] text-slate-400"
+                  className="hidden 2xl:flex items-center space-x-1 px-2 py-1 rounded-md bg-slate-900/90 border border-slate-800 text-[10px] text-slate-400"
                   title="Weekly automated regulatory sync & link audit daemon status"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -881,37 +911,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            {/* AI Copilot */}
-            {featureFlags.aiCopilot && onOpenAIChat && (
-              <button
-                type="button"
-                onClick={onOpenAIChat}
-                className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer"
-                title="Launch Autonomous Regulatory AI Copilot (Search Grounded)"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">AI Copilot</span>
-              </button>
-            )}
+            {/* AI Copilot is available via the floating quick-launch button (bottom-right).
+                Export is available on the Overview, Controls Crosswalk, and per-regulation views.
+                Both were removed from the top bar to prevent header overflow. */}
 
-            {/* Export Button */}
-            {featureFlags.exportReports && (
-              <button
-                type="button"
-                onClick={handleExportClick}
-                className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer"
-                title="Bulk Export Compliance Report (PDF / CSV / JSON)"
-              >
-                <Download className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">Export</span>
-              </button>
-            )}
-
-            {/* Mobile Hamburger Menu Button */}
+            {/* Mobile / Tablet Hamburger Menu Button (shown below xl where the full nav is hidden) */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+              className="xl:hidden p-2 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-center transition-colors cursor-pointer"
               aria-label="Toggle Navigation Menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5 text-rose-400" /> : <Menu className="w-5 h-5 text-slate-200" />}
@@ -920,9 +928,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Mobile Drawer Navigation with Hierarchical Categories & Descriptions */}
+      {/* Mobile / Tablet Drawer Navigation with Hierarchical Categories & Descriptions */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-800 bg-slate-900/95 backdrop-blur-xl px-4 py-3 max-h-[80vh] overflow-y-auto space-y-4">
+        <div className="xl:hidden border-t border-slate-800 bg-slate-900/95 backdrop-blur-xl px-4 py-3 max-h-[80vh] overflow-y-auto space-y-4">
           {menuGroups.map((group) => {
             const GroupIcon = group.icon;
             const visibleItems = group.items.filter((item) => item.enabled !== false);
@@ -981,6 +989,37 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             );
           })}
+
+          {/* Quick Actions — keep Export & AI Copilot reachable on tablet/mobile
+              where they are not shown in the top action bar. */}
+          <div className="pt-3 border-t border-slate-800/60 grid grid-cols-2 gap-2">
+            {featureFlags.aiCopilot && onOpenAIChat && (
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenAIChat();
+                  setMobileMenuOpen(false);
+                }}
+                className="p-2.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>AI Copilot</span>
+              </button>
+            )}
+            {featureFlags.exportReports && (
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenExport();
+                  setMobileMenuOpen(false);
+                }}
+                className="p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Export</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
     </header>

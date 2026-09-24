@@ -1,1 +1,31 @@
 @import "tailwindcss";
+
+/* =============================================================================
+   Brighter Display Mode
+   -----------------------------------------------------------------------------
+   Toggled via the ThemeContext (adds `.bright-mode` to <html>). Instead of
+   maintaining a second set of color classes across every component, we lift the
+   whole dark slate palette with a tuned filter: a little more brightness, richer
+   saturation for the cyan/emerald accents, and a gentle contrast bump so text
+   stays crisp.
+
+   The filter is applied to #root (the app tree) rather than <body>. A CSS filter
+   establishes a containing block for descendant position:fixed elements, so
+   keeping it on #root (which the app already treats as the viewport-filling
+   surface) keeps modals, drawers and dropdowns behaving correctly while still
+   brightening them. The matching background on html/body prevents any unfiltered
+   gap from showing during overscroll.
+   ============================================================================= */
+html,
+body {
+  background-color: #020617; /* slate-950 — matches the app surface */
+}
+
+#root {
+  transition: filter 0.35s ease;
+  min-height: 100vh;
+}
+
+html.bright-mode #root {
+  filter: brightness(1.16) saturate(1.25) contrast(1.03);
+}

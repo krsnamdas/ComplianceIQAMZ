@@ -148,7 +148,9 @@ export const ComplianceMaturityHeatmap: React.FC<ComplianceMaturityHeatmapProps>
     const activeSectors =
       selectedSector === 'all' ? MATURITY_SECTORS : MATURITY_SECTORS.filter((s) => s.id === selectedSector);
 
-    const margin = { top: 40, right: 30, bottom: 20, left: 190 };
+    // Rotated column labels need extra headroom so they don't clip above the SVG.
+    const willRotateHeaders = activeSectors.length > 3;
+    const margin = { top: willRotateHeaders ? 96 : 40, right: 30, bottom: 20, left: 190 };
     const rowHeight = 34;
     const height = Math.max(380, displayCountries.length * rowHeight + margin.top + margin.bottom);
 
@@ -194,6 +196,14 @@ export const ComplianceMaturityHeatmap: React.FC<ComplianceMaturityHeatmapProps>
       .range(['#1e293b', '#6366f1', '#8b5cf6', '#a855f7']);
 
     // Draw Column Headers (Sectors)
+    // When many sectors are shown, the column bands become too narrow for the
+    // horizontal labels and they overlap. We rotate the labels when the band is
+    // tight, and keep them horizontal (centered) when there's plenty of room
+    // (e.g. a single sector is selected).
+    // Use the same decision as the top-margin calculation to guarantee the
+    // rotated labels always have the headroom reserved for them.
+    const rotateHeaders = willRotateHeaders;
+
     const columnHeaders = g
       .append('g')
       .attr('class', 'column-headers')
@@ -201,13 +211,17 @@ export const ComplianceMaturityHeatmap: React.FC<ComplianceMaturityHeatmapProps>
       .data(activeSectors)
       .enter()
       .append('g')
-      .attr('transform', (d) => `translate(${(xScale(d.id) || 0) + xScale.bandwidth() / 2}, -12)`);
+      .attr(
+        'transform',
+        (d) => `translate(${(xScale(d.id) || 0) + xScale.bandwidth() / 2}, -10)`
+      );
 
     columnHeaders
       .append('text')
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', rotateHeaders ? 'start' : 'middle')
+      .attr('transform', rotateHeaders ? 'rotate(-40)' : null)
       .attr('fill', '#94a3b8')
-      .attr('font-size', '12px')
+      .attr('font-size', rotateHeaders ? '11px' : '12px')
       .attr('font-weight', '600')
       .text((d) => d.shortName);
 
