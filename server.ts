@@ -1989,7 +1989,7 @@ Clause Reference: ${r.clauseReference || 'General Clause'}`
         try {
           const searchQuery = query
             ? `MENAT regulatory compliance ${query}`
-            : `MENAT cybersecurity data privacy AI governance regulatory updates ${new Date().getFullYear()}`;
+            : `Saudi Arabia UAE Qatar MENAT cybersecurity data privacy AI governance regulatory updates ${new Date().getFullYear()} NCA SDAIA DESC CBB`;
 
           const { results, queries } = await tavilySearch(searchQuery, 6);
           lastGroundedQueries = queries;
