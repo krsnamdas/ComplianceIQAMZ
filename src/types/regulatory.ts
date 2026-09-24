@@ -7,7 +7,12 @@ export type RegulatoryCategory =
   | 'tech_ot_ics'
   | 'tech_space_quantum'
   | 'tech_fintech_payments'
+  | 'tech_risk_others'
   | 'non_tech_impact';
+
+export type AuditFrequency = 'Annually' | 'Quarterly' | 'Bi-Annually' | 'Monthly' | 'NA' | 'Unknown';
+
+export type RegulationNature = 'Tech' | 'Hybrid' | 'Non-Tech';
 
 export type SectorType =
   | 'Banking'
@@ -127,6 +132,7 @@ export interface Regulation {
   category: RegulatoryCategory;
   categoryLabel: string;
   isTech: boolean;
+  regulationNature?: RegulationNature;
   regulatoryMandate?: {
     type: 'Mandatory' | 'Guideline' | 'Conditional Mandate';
     confidenceScore: number; // e.g. 96 for 96%
@@ -137,7 +143,10 @@ export interface Regulation {
   currentVersion?: string;
   createdDate?: string;
   yearEnacted: number;
+  enactmentPeriod?: string; // Format: Month/year (mm/yyyy) e.g. "09/2024"
   effectiveDate: string;
+  auditFrequency?: AuditFrequency; // Period of assessment/review: Annually, Quarterly, Bi-Annually, Monthly, NA, Unknown
+  auditTimeline?: string; // Timeline based on audit frequency (e.g. "Annual Audit (Q4 Statutory Attestation)")
   lastUpdated: string;
   scopeSummary: string;
   targetSectors: SectorType[];

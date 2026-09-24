@@ -8,6 +8,7 @@ import { BroadcastBannerTab } from './BroadcastBannerTab';
 import { AuditTrailTab } from './AuditTrailTab';
 import { SystemBackupTab } from './SystemBackupTab';
 import { LinkIntegrityTab } from './LinkIntegrityTab';
+import { LinkSuggestionsQueueTab } from './LinkSuggestionsQueueTab';
 import { ComplianceIQLogo } from '../ComplianceIQLogo';
 import {
   ShieldAlert,
@@ -31,6 +32,7 @@ export type AdminSubTab =
   | 'countries'
   | 'regulations'
   | 'link_integrity'
+  | 'link_suggestions'
   | 'features'
   | 'users'
   | 'broadcast'
@@ -56,6 +58,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
     unlockAdmin,
     lockAdmin,
     quickLoginAs,
+    linkSuggestions = [],
   } = useAdmin();
 
   const [activeSubTab, setActiveSubTab] = useState<AdminSubTab>('regulations');
@@ -86,24 +89,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
             setIsFlashingSuccess(false);
           }, 600);
         } else {
-          setAuthError('Invalid administrator credentials. Please use local password "ciadmin123".');
+          setAuthError('Invalid administrator credentials. Please verify your administrator password.');
         }
       }, 350);
-    };
-
-    const handleQuickAutoFill = () => {
-      setAdminPasswordInput('ciadmin123');
-      setAuthError(null);
-      setIsVerifying(true);
-      setTimeout(() => {
-        setIsVerifying(false);
-        setIsFlashingSuccess(true);
-        unlockAdmin('ciadmin123');
-        quickLoginAs('ciadmin1');
-        setTimeout(() => {
-          setIsFlashingSuccess(false);
-        }, 600);
-      }, 300);
     };
 
     return (
@@ -145,26 +133,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
             </p>
           </div>
 
-          {/* Local Password Guidance Card */}
+          {/* Security Guidance Card */}
           <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 mb-6 space-y-2 text-xs">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <span className="text-slate-400 font-medium">Local Admin Credentials:</span>
+              <span className="text-slate-400 font-medium">Security Authentication:</span>
               <span className="text-emerald-400 font-mono font-bold">Local Auth Enforced</span>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <span className="text-slate-300 block">Default Admin Username: <code className="text-amber-400 font-mono font-bold">ciadmin1</code></span>
-                <span className="text-slate-300 block">Generated Admin Password: <code className="text-emerald-400 font-mono font-bold">ciadmin123</code></span>
-              </div>
-              <button
-                type="button"
-                onClick={handleQuickAutoFill}
-                className="px-3 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 text-xs font-semibold flex items-center space-x-1 transition-all cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Auto-Unlock</span>
-              </button>
-            </div>
+            <p className="text-slate-300">
+              Please enter your assigned administrator password to verify authorization and open the Root Console.
+            </p>
           </div>
 
           {/* Error Message */}
@@ -185,7 +162,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
                 type="password"
                 required
                 autoFocus
-                placeholder="Enter local admin password (ciadmin123)"
+                placeholder="Enter administrator password"
                 value={adminPasswordInput}
                 onChange={(e) => setAdminPasswordInput(e.target.value)}
                 className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-mono"
@@ -320,6 +297,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
           </button>
 
           <button
+            onClick={() => setActiveSubTab('link_suggestions')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'link_suggestions'
+                ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400/50'
+                : 'bg-slate-950/60 hover:bg-slate-800 text-indigo-300 hover:text-white border border-indigo-500/20'
+            }`}
+          >
+            <Link2 className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Link Suggestions</span>
+            {linkSuggestions.filter((s) => s.status === 'pending').length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950 font-mono">
+                {linkSuggestions.filter((s) => s.status === 'pending').length}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveSubTab('features')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'features'
@@ -386,6 +380,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
         {activeSubTab === 'countries' && <CountryManagementTab />}
         {activeSubTab === 'regulations' && <RegulationEditorTab />}
         {activeSubTab === 'link_integrity' && <LinkIntegrityTab />}
+        {activeSubTab === 'link_suggestions' && <LinkSuggestionsQueueTab />}
         {activeSubTab === 'features' && <FeatureTogglesTab />}
         {activeSubTab === 'users' && <UserManagementTab />}
         {activeSubTab === 'broadcast' && <BroadcastBannerTab />}

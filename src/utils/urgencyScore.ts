@@ -1,5 +1,6 @@
 import { Regulation, SectorType } from '../types/regulatory';
 import { RegulatorySentiment } from '../types/news';
+import { REGULATORY_TIMELINE_EVENTS } from '../data/regulatoryTimelineData';
 
 export interface UrgencyScoreResult {
   score: number; // 0 - 100
@@ -103,34 +104,55 @@ export function calculateUrgencyScore(regulation: Regulation): UrgencyScoreResul
   const sectorRiskScore = Math.min(100, Math.round((maxWeight / 1.5) * 100));
 
   // 3. Upcoming Deadlines & Proximity Calculation
-  // We establish a deterministic upcoming compliance milestone date for each regulation
-  const effectiveYear = regulation.yearEnacted || 2024;
-  const currentYear = 2026;
-  const diffYears = currentYear - effectiveYear;
-
-  // Derive target milestone date based on regulation id hash and annual audit cycles
+  // Grounded against statutory timeline milestones and periodic supervisory audits
+  const now = new Date();
   let daysRemaining = 45;
-  let targetDeadline = '2026-05-15';
+  let targetDeadline = '';
 
-  const hash = regulation.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const cycleDays = [24, 38, 52, 75, 98, 120, 160, 210, 290];
-  daysRemaining = cycleDays[hash % cycleDays.length];
+  // Check if there is an official statutory event in REGULATORY_TIMELINE_EVENTS
+  const timelineEvent = REGULATORY_TIMELINE_EVENTS.find(
+    (e) => e.regulationId === regulation.id || e.regulationCode.toLowerCase() === regulation.code.toLowerCase()
+  );
 
-  // If draft or recently enacted, tighten deadline
-  if (regulation.status === 'Draft / Public Consultation') {
-    daysRemaining = Math.min(daysRemaining, 35);
-  } else if (diffYears <= 1) {
-    daysRemaining = Math.min(daysRemaining, 60);
+  if (timelineEvent && timelineEvent.deadlineDate) {
+    const eventDeadline = new Date(timelineEvent.deadlineDate);
+    if (eventDeadline.getTime() > now.getTime()) {
+      daysRemaining = Math.max(1, Math.ceil((eventDeadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+      targetDeadline = eventDeadline.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    } else {
+      // Past statutory enactment date: calculate next scheduled annual supervisory recertification
+      const nextCycle = new Date(eventDeadline);
+      while (nextCycle.getTime() <= now.getTime()) {
+        nextCycle.setFullYear(nextCycle.getFullYear() + 1);
+      }
+      daysRemaining = Math.max(1, Math.ceil((nextCycle.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+      targetDeadline = nextCycle.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    }
+  } else {
+    // Derive deterministic upcoming compliance milestone from regulation hash (30 to 180 days out)
+    const hash = regulation.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const cycleOffsets = [35, 48, 62, 75, 90, 110, 135, 160, 185];
+    daysRemaining = cycleOffsets[hash % cycleOffsets.length];
+
+    if (regulation.status === 'Draft / Public Consultation') {
+      daysRemaining = Math.min(daysRemaining, 45);
+    }
+
+    const futureDate = new Date(now.getTime() + daysRemaining * 24 * 60 * 60 * 1000);
+    targetDeadline = futureDate.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
   }
-
-  // Format target deadline date
-  const now = new Date('2026-03-22');
-  const targetDateObj = new Date(now.getTime() + daysRemaining * 24 * 60 * 60 * 1000);
-  targetDeadline = targetDateObj.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
 
   let deadlineScore = 40;
   if (daysRemaining <= 30) {
@@ -163,9 +185,9 @@ export function calculateUrgencyScore(regulation: Regulation): UrgencyScoreResul
     tier = 'Monitored';
   }
 
-  const urgencyRationale = `${tier} priority: ${sentiment} sentiment (${sentimentScore}%), ${
-    highestRiskSector || 'cross-sector'
-  } risk weighting (${maxWeight.toFixed(2)}x), and next audit milestone in ${daysRemaining} days.`;
+  // Clean, non-repeating executive jurisprudence rationale
+  const sectorContext = highestRiskSector ? `${highestRiskSector} and regulated infrastructure` : 'designated economic sectors';
+  const urgencyRationale = `${tier} priority under ${regulation.authority}: Statutory requirements mandate strict compliance controls across ${sectorContext}. Next supervisory audit or filing window scheduled for ${targetDeadline}.`;
 
   return {
     score: finalScore,

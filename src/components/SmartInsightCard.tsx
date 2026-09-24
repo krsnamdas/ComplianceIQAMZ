@@ -164,7 +164,7 @@ Generated via ${insightData.model} at ${new Date(insightData.timestamp).toLocale
             <div className="flex items-center space-x-2">
               <span className="text-xs font-bold text-white tracking-wide">Smart Insight Summary</span>
               <span className="px-2 py-0.5 text-[10px] font-mono font-medium rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                Gemini 3.8 Flash
+                Autonomous AI Model
               </span>
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5">
@@ -214,7 +214,7 @@ Generated via ${insightData.model} at ${new Date(insightData.timestamp).toLocale
                 ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 hover:border-emerald-500/40'
                 : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/40'
             }`}
-            title="Dynamically calculate sector regulatory impact via Gemini"
+            title="Dynamically calculate sector regulatory impact via AI model"
           >
             {isLoading ? (
               <>
@@ -266,7 +266,7 @@ Generated via ${insightData.model} at ${new Date(insightData.timestamp).toLocale
           <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p>
-              Click <strong className="text-white">Generate Insight</strong> to run dynamic Gemini AI analysis for{' '}
+              Click <strong className="text-white">Generate Insight</strong> to run dynamic AI analysis for{' '}
               <strong className="text-emerald-300">{selectedSector}</strong> under {regulation.code}.
             </p>
             <p className="text-[11px] text-slate-400">
@@ -282,7 +282,7 @@ Generated via ${insightData.model} at ${new Date(insightData.timestamp).toLocale
           <div className="flex items-center space-x-2 text-xs text-emerald-300 font-medium">
             <Sparkles className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
             <span>
-              Analyzing regulatory impact for <strong className="text-white">{selectedSector}</strong> via Gemini...
+              Analyzing regulatory impact for <strong className="text-white">{selectedSector}</strong> via AI Model...
             </span>
           </div>
 

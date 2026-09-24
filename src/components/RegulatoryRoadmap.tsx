@@ -1024,7 +1024,7 @@ export const RegulatoryRoadmap: React.FC<RegulatoryRoadmapProps> = ({
                           )
                         }
                         className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1 transition-colors cursor-pointer"
-                        title="Consult Gemini AI Compliance Copilot for implementation strategy"
+                        title="Consult Autonomous AI Compliance Copilot for implementation strategy"
                       >
                         <Sparkles className="w-3.5 h-3.5" />
                         <span>AI Advisory</span>

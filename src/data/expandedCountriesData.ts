@@ -25,9 +25,9 @@ export const ALL_MENAT_COUNTRIES: Country[] = [
     region: 'GCC',
     capital: 'Abu Dhabi',
     primaryAuthorities: ['CSC', 'CBUAE', 'DESC', 'TDRA', 'UAE AI Office', 'DIFC', 'ADGM'],
-    totalRegulationsCount: 9,
-    techRegulationsCount: 8,
-    nonTechRegulationsCount: 1,
+    totalRegulationsCount: 13,
+    techRegulationsCount: 11,
+    nonTechRegulationsCount: 2,
     description: 'Multi-jurisdictional regime featuring Federal Cybercrime Law 34/2021, CBUAE Cyber Regulatory Framework, DESC ISR v2.0, Federal PDPL 45/2021, and financial free-zone regimes.',
   },
   {

@@ -47,6 +47,24 @@ export interface FeatureFlags {
   exportReports: boolean;
   watchlistAlerts: boolean;
   systemBroadcast: boolean;
+  smartInsights: boolean;
+}
+
+export interface LinkSuggestion {
+  id: string;
+  regulationId: string;
+  regulationCode: string;
+  regulationName: string;
+  linkType: 'officialUrl' | 'documentPdfUrl';
+  currentUrl: string;
+  suggestedUrl: string;
+  notes?: string;
+  submittedByUserId: string;
+  submittedByUserName: string;
+  submittedAt: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  reviewedAt?: string;
+  reviewedBy?: string;
 }
 
 export interface SystemBroadcast {

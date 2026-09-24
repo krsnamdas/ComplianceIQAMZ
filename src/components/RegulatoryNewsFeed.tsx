@@ -278,7 +278,7 @@ export const RegulatoryNewsFeed: React.FC<RegulatoryNewsFeedProps> = ({
                   <span>Google Search Grounding</span>
                 </span>
                 <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-mono rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
-                  Gemini 3.8 Flash
+                  Autonomous AI Model
                 </span>
               </div>
             </div>

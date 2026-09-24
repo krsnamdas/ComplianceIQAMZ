@@ -3,9 +3,11 @@ import { Regulation, RegulationRequirementsAnalysis, RequirementConfidenceResult
 import { useRBAC } from '../context/RBACContext';
 import { useAdmin } from '../context/AdminContext';
 import { SmartInsightCard } from './SmartInsightCard';
+import { SuggestLinkModal } from './SuggestLinkModal';
 import { calculateUrgencyScore } from '../utils/urgencyScore';
 import { analyzeRegulationMandate, analyzeControlMandate } from '../utils/mandateConfidence';
 import { ConfidenceLevelLegendModal } from './ConfidenceLevelLegendModal';
+import { formatEnactmentPeriod, getAuditTimelineDefault } from '../utils/auditTimelineHelper';
 import {
   ExternalLink,
   FileText,
@@ -37,6 +39,7 @@ import {
   PenTool,
   BookOpen,
   Filter,
+  Link2,
 } from 'lucide-react';
 
 interface RegulationCardProps {
@@ -67,12 +70,19 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
   onRedlinePolicy,
 }) => {
   const { canManageWatchlist } = useRBAC();
-  const { getLinkAudit, addAuditLog } = useAdmin();
+  const { getLinkAudit, addAuditLog, featureFlags } = useAdmin();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showUrgencyBreakdown, setShowUrgencyBreakdown] = useState(false);
   const [showConfidenceExplainer, setShowConfidenceExplainer] = useState(false);
   const [showLegendModal, setShowLegendModal] = useState(false);
+  const [suggestModal, setSuggestModal] = useState<{
+    isOpen: boolean;
+    linkType: 'officialUrl' | 'documentPdfUrl';
+  }>({
+    isOpen: false,
+    linkType: 'officialUrl',
+  });
 
   // Backend Gemini Requirement Confidence Analysis State
   const [aiAnalysis, setAiAnalysis] = useState<RegulationRequirementsAnalysis | null>(null);
@@ -265,18 +275,30 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
             </button>
 
             <span
-              className={`px-2.5 py-0.5 text-xs font-medium rounded-full flex items-center space-x-1 ${
-                regulation.isTech
+              className={`px-2.5 py-0.5 text-xs font-semibold rounded-full flex items-center space-x-1 ${
+                regulation.regulationNature === 'Tech' || (!regulation.regulationNature && regulation.isTech)
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                  : regulation.regulationNature === 'Hybrid'
+                  ? 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/30'
                   : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
               }`}
             >
               {getCategoryIcon(regulation.category)}
-              <span>{regulation.isTech ? 'Tech Regulation' : 'Non-Tech (Tech Impact)'}</span>
+              <span>{regulation.regulationNature ? `${regulation.regulationNature} Regulation` : (regulation.isTech ? 'Tech Regulation' : 'Non-Tech')}</span>
+            </span>
+
+            <span className="px-2 py-0.5 text-[11px] font-medium rounded bg-slate-800 text-cyan-300 border border-slate-700 flex items-center space-x-1" title="Statutory Enactment Period">
+              <Calendar className="w-3 h-3 text-cyan-400" />
+              <span>Enacted: {formatEnactmentPeriod(regulation.enactmentPeriod, regulation.effectiveDate, regulation.yearEnacted)}</span>
+            </span>
+
+            <span className="px-2 py-0.5 text-[11px] font-medium rounded bg-slate-800 text-amber-300 border border-slate-700 flex items-center space-x-1" title={regulation.auditTimeline || `Assessment Period: ${regulation.auditFrequency || 'Annually'}`}>
+              <Clock className="w-3 h-3 text-amber-400" />
+              <span>Review: {regulation.auditFrequency || 'Annually'}</span>
             </span>
 
             <span className="px-2 py-0.5 text-[11px] font-medium rounded bg-slate-800 text-slate-300 border border-slate-700">
-              {regulation.status} ({regulation.yearEnacted})
+              {regulation.status}
             </span>
 
             {/* Compliance Requirement Confidence Visual Badge (Extracted & Analyzed by Gemini) */}
@@ -311,7 +333,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                     [{mandate.confidenceInterval}]
                   </span>
                   {aiAnalysis?.isLiveGemini && (
-                    <span title="Extracted and analyzed by Gemini 3.8 Flash">
+                    <span title="Extracted and analyzed by Autonomous AI Model">
                       <Sparkles className="w-3 h-3 text-cyan-300" />
                     </span>
                   )}
@@ -327,9 +349,9 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <div className="flex items-center space-x-2">
                 <Sparkles className="w-4 h-4 text-cyan-400" />
-                <span className="font-bold text-white">Gemini Statutory Confidence Analysis</span>
+                <span className="font-bold text-white">Autonomous AI Statutory Confidence Analysis</span>
                 <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-mono">
-                  {aiAnalysis?.modelUsed || 'Gemini 3.8 Flash Engine'}
+                  {aiAnalysis?.modelUsed || 'Autonomous Statutory AI Engine'}
                 </span>
               </div>
               <div className="flex items-center space-x-2">
@@ -347,7 +369,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                   onClick={() => fetchRequirementConfidence(true)}
                   disabled={isLoadingConfidence}
                   className="px-2 py-0.5 text-[10px] font-semibold rounded bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700 flex items-center space-x-1 transition-colors cursor-pointer disabled:opacity-50"
-                  title="Re-run Gemini statutory analysis"
+                  title="Re-run Autonomous AI statutory analysis"
                 >
                   <Sparkles className={`w-3 h-3 ${isLoadingConfidence ? 'animate-spin' : ''}`} />
                   <span>{isLoadingConfidence ? 'Analyzing...' : 'Re-analyze'}</span>
@@ -382,7 +404,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                     {mandate.rationale}
                   </p>
                   <p className="text-[11px] text-slate-400 italic">
-                    * Analyzed by Gemini AI based on statutory instrument backing (Decree vs. Circular), mandatory auxiliary verbs (shall/must), and enforcement penalty exposure.
+                    * Analyzed by Autonomous AI Model based on statutory instrument backing (Decree vs. Circular), mandatory auxiliary verbs (shall/must), and enforcement penalty exposure.
                   </p>
                 </div>
               );
@@ -510,11 +532,11 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
         </div>
 
         {/* Version & Timeline Lifecycle Strip */}
-        <div className="mt-3.5 pt-3 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+        <div className="mt-3.5 pt-3 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
           <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/70">
             <span className="text-[10px] text-slate-400 uppercase tracking-wider flex items-center space-x-1">
               <History className="w-3 h-3 text-cyan-400" />
-              <span>Current Version</span>
+              <span>Version</span>
             </span>
             <span
               className="font-mono font-semibold text-cyan-300 text-xs truncate block mt-0.5"
@@ -526,20 +548,33 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
 
           <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/70">
             <span className="text-[10px] text-slate-400 uppercase tracking-wider flex items-center space-x-1">
-              <Calendar className="w-3 h-3 text-slate-400" />
-              <span>Enacted / Issued</span>
+              <Calendar className="w-3 h-3 text-cyan-400" />
+              <span>Enacted</span>
             </span>
-            <span className="font-medium text-slate-200 text-xs block mt-0.5">
-              {regulation.createdDate || `${regulation.yearEnacted}`}
+            <span className="font-mono font-bold text-cyan-300 text-xs block mt-0.5">
+              {formatEnactmentPeriod(regulation.enactmentPeriod, regulation.effectiveDate, regulation.yearEnacted)}
+            </span>
+          </div>
+
+          <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/70 col-span-2 sm:col-span-1">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+              <Clock className="w-3 h-3 text-amber-400" />
+              <span>Audit Review</span>
+            </span>
+            <span className="font-semibold text-amber-300 text-xs block mt-0.5 truncate" title={regulation.auditTimeline || getAuditTimelineDefault(regulation.auditFrequency)}>
+              {regulation.auditFrequency || 'Annually'}
+            </span>
+            <span className="text-[9px] text-slate-400 block truncate" title={regulation.auditTimeline || getAuditTimelineDefault(regulation.auditFrequency)}>
+              {regulation.auditTimeline || getAuditTimelineDefault(regulation.auditFrequency)}
             </span>
           </div>
 
           <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/70">
             <span className="text-[10px] text-slate-400 uppercase tracking-wider flex items-center space-x-1">
-              <Clock className="w-3 h-3 text-amber-400" />
-              <span>Enforcement Date</span>
+              <Scale className="w-3 h-3 text-slate-400" />
+              <span>Enforcement</span>
             </span>
-            <span className="font-medium text-amber-200 text-xs block mt-0.5">
+            <span className="font-medium text-slate-200 text-xs block mt-0.5">
               {regulation.effectiveDate}
             </span>
           </div>
@@ -671,6 +706,17 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                       <span>Verified (200 OK)</span>
                     </span>
                   )}
+
+                  {/* Button to suggest link correction to admin */}
+                  <button
+                    type="button"
+                    onClick={() => setSuggestModal({ isOpen: true, linkType: 'officialUrl' })}
+                    className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 transition-colors cursor-pointer"
+                    title="Suggest a verified working URL for this regulation to the admin"
+                  >
+                    <Link2 className="w-2.5 h-2.5" />
+                    <span>Suggest Link</span>
+                  </button>
                 </div>
               );
             })()}
@@ -737,14 +783,29 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                       <span>PDF Verified</span>
                     </span>
                   )}
+
+                  {/* Suggest PDF Link button */}
+                  {isPdfBroken && (
+                    <button
+                      type="button"
+                      onClick={() => setSuggestModal({ isOpen: true, linkType: 'documentPdfUrl' })}
+                      className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 transition-colors cursor-pointer"
+                      title="Suggest a verified working PDF gazette link to the admin"
+                    >
+                      <Link2 className="w-2.5 h-2.5" />
+                      <span>Suggest PDF</span>
+                    </button>
+                  )}
                 </div>
               );
             })()}
           </div>
         </div>
 
-        {/* Smart Insight Summary Card (Powered by Gemini) */}
-        <SmartInsightCard regulation={regulation} countryName={countryName} />
+        {/* Smart Insight Summary Card (Powered by Autonomous AI Model, Toggleable by Admin) */}
+        {featureFlags?.smartInsights !== false && (
+          <SmartInsightCard regulation={regulation} countryName={countryName} />
+        )}
 
         {/* Expandable Version History Accordion */}
         {showVersionHistory && regulation.versionHistory && (
@@ -844,12 +905,12 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                     <span>Granular Statutory Requirements &amp; Global Mappings:</span>
                     {aiAnalysis?.isLiveGemini && (
                       <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                        GEMINI EXTRACTED
+                        AI EXTRACTED
                       </span>
                     )}
                   </h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Each requirement explicitly features a Compliance Requirement Confidence score (Mandatory vs. Guideline) extracted &amp; analyzed by backend Gemini.
+                    Each requirement explicitly features a Compliance Requirement Confidence score (Mandatory vs. Guideline) extracted &amp; analyzed by Autonomous AI Model.
                   </p>
                 </div>
 
@@ -869,7 +930,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                     onClick={() => fetchRequirementConfidence(true)}
                     disabled={isLoadingConfidence}
                     className="px-2.5 py-1 text-xs font-semibold rounded bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-600/40 flex items-center space-x-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                    title="Re-run backend Gemini extraction and legal confidence analysis on these requirements"
+                    title="Re-run Autonomous AI extraction and legal confidence analysis on these requirements"
                   >
                     <Sparkles className={`w-3.5 h-3.5 text-cyan-400 ${isLoadingConfidence ? 'animate-spin' : ''}`} />
                     <span>{isLoadingConfidence ? 'Analyzing...' : 'Re-analyze'}</span>
@@ -925,7 +986,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                                 ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25'
                                 : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/25'
                             }`}
-                            title={`Compliance Requirement Confidence: ${reqConf.label} (${reqConf.confidenceScore}% [${reqConf.confidenceInterval}]). Rationale: ${reqConf.rationale} (Analyzed by Gemini AI)`}
+                            title={`Compliance Requirement Confidence: ${reqConf.label} (${reqConf.confidenceScore}% [${reqConf.confidenceInterval}]). Rationale: ${reqConf.rationale} (Analyzed by Autonomous AI Model)`}
                           >
                             <Scale className="w-3 h-3 shrink-0 opacity-80" />
                             <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider hidden md:inline">
@@ -941,7 +1002,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                               [{reqConf.confidenceInterval}]
                             </span>
                             {reqConf.isGeminiExtracted && (
-                              <span className="text-cyan-300 flex items-center" title="Extracted by Gemini AI Service">
+                              <span className="text-cyan-300 flex items-center" title="Extracted by Autonomous AI Service">
                                 <Sparkles className="w-3 h-3 ml-0.5" />
                               </span>
                             )}
@@ -955,13 +1016,13 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
 
                       <p className="text-slate-300 leading-relaxed text-xs">{ctrl.description}</p>
 
-                      {/* Gemini Statutory Jurist Rationale Bar */}
+                      {/* Autonomous AI Statutory Jurist Rationale Bar */}
                       {reqConf.rationale && (
                         <div className="p-2 rounded bg-slate-950/70 border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px]">
                           <div className="flex items-start sm:items-center space-x-1.5 text-slate-300">
                             <span className="inline-flex items-center space-x-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800/80 shrink-0 uppercase tracking-wider">
                               <Sparkles className="w-2.5 h-2.5 mr-0.5" />
-                              Gemini Jurist Rationale
+                              Autonomous AI Jurist Rationale
                             </span>
                             <span className="italic text-slate-300 leading-snug">
                               "{reqConf.rationale}"
@@ -1033,6 +1094,15 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
       <ConfidenceLevelLegendModal
         isOpen={showLegendModal}
         onClose={() => setShowLegendModal(false)}
+      />
+
+      {/* Suggest Link Correction Modal */}
+      <SuggestLinkModal
+        isOpen={suggestModal.isOpen}
+        onClose={() => setSuggestModal((prev) => ({ ...prev, isOpen: false }))}
+        regulation={regulation}
+        initialLinkType={suggestModal.linkType}
+        countryName={countryName}
       />
     </div>
   );

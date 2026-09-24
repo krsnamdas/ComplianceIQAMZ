@@ -26,6 +26,10 @@ import {
   CheckCircle2,
   HelpCircle,
   BellRing,
+  AlertTriangle,
+  ExternalLink,
+  Link2,
+  ArrowRight,
 } from 'lucide-react';
 import { useRBAC } from '../context/RBACContext';
 import { useAdmin } from '../context/AdminContext';
@@ -97,19 +101,24 @@ export const Navbar: React.FC<NavbarProps> = ({
   scraperStatus,
 }) => {
   const { canTriggerScraper, triggerRestrictedAction } = useRBAC();
-  const { featureFlags, isCurrentUserAdmin, isAuthenticated } = useAdmin();
+  const { featureFlags, isCurrentUserAdmin, isAuthenticated, linkSuggestions = [] } = useAdmin();
 
   // Active open dropdown in desktop menu
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [hoveredItem, setHoveredItem] = useState<NavigationTab | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isBellOpen, setIsBellOpen] = useState(false);
   const navRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (navRef.current && !navRef.current.contains(event.target as Node)) {
         setOpenDropdown(null);
+      }
+      if (bellRef.current && !bellRef.current.contains(event.target as Node)) {
+        setIsBellOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -286,26 +295,26 @@ export const Navbar: React.FC<NavbarProps> = ({
     {
       id: 'governance',
       title: 'Sources & Governance',
-      shortTitle: 'Sources & Admin',
+      shortTitle: isCurrentUserAdmin ? 'Sources & Admin' : 'Sources & Data',
       icon: Database,
       items: [
         {
           id: 'sources',
           label: 'Tracked Official Sources',
-          badge: '67+ Portals',
+          badge: '51 Portals',
           badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
           icon: Database,
-          description: 'Directory of verified national gazettes, central bank portals, and crawler status.',
+          description: 'Directory of verified national gazettes, central bank portals, and crawler status across 24 jurisdictions.',
           enabled: featureFlags.sourcesManager !== false,
         },
         {
           id: 'admin',
           label: 'Admin Console & Toggles',
-          badge: isCurrentUserAdmin ? 'ADMIN' : 'IAM',
+          badge: 'ADMIN',
           badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold',
           icon: Sliders,
           description: 'System feature toggles, live regulation CMS editor, role permissions (RBAC), and crawler controls.',
-          enabled: true,
+          enabled: isCurrentUserAdmin,
         },
       ],
     },
@@ -518,22 +527,288 @@ export const Navbar: React.FC<NavbarProps> = ({
               <UserAccountSwitcher onOpenAdminPanel={() => handleSelectTab('admin')} />
             )}
 
-            {/* Watchlist Alerts Bell Shortcut */}
-            {featureFlags.watchlistAlerts && (
-              <button
-                type="button"
-                onClick={() => handleSelectTab('watchlist')}
-                className="relative p-2 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
-                title="View Watchlist Specialized Alerts & Trackers"
-              >
-                <Bell className="w-4 h-4 text-indigo-400" />
-                {unreadNotificationsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-bold border border-slate-900 animate-pulse">
-                    {unreadNotificationsCount}
-                  </span>
-                )}
-              </button>
-            )}
+            {/* Tailored Watchlist & Compliance Reminders Bell Popover */}
+            {featureFlags.watchlistAlerts && (() => {
+              const pendingLinkSuggestionsCount = linkSuggestions.filter((s) => s.status === 'pending').length;
+              const adminAlertCount = (pendingLinkSuggestionsCount > 0 ? pendingLinkSuggestionsCount : 0) + 3;
+              const normalUserAlertCount = unreadNotificationsCount > 0 ? unreadNotificationsCount : 4;
+              const displayAlertCount = isCurrentUserAdmin ? adminAlertCount : normalUserAlertCount;
+
+              return (
+                <div ref={bellRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsBellOpen(!isBellOpen)}
+                    className={`relative p-2 text-xs font-medium rounded-lg border flex items-center justify-center transition-colors shadow-sm cursor-pointer ${
+                      isBellOpen
+                        ? 'bg-slate-700 text-white border-indigo-500 ring-2 ring-indigo-500/30'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                    }`}
+                    title={isCurrentUserAdmin ? 'Admin Reminders & Operational Audit' : 'Compliance Reminders & Filing Deadlines'}
+                  >
+                    <Bell className={`w-4 h-4 ${isCurrentUserAdmin ? 'text-amber-400' : 'text-indigo-400'}`} />
+                    {displayAlertCount > 0 && (
+                      <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-bold border border-slate-900 animate-pulse">
+                        {displayAlertCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Popover Content */}
+                  {isBellOpen && (
+                    <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-800">
+                      {/* Header */}
+                      <div className="p-3 bg-slate-950/80 flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <Bell className={`w-4 h-4 ${isCurrentUserAdmin ? 'text-amber-400' : 'text-indigo-400'}`} />
+                            <span className="text-xs font-bold text-white">
+                              {isCurrentUserAdmin ? 'Administrator Reminders' : 'Compliance Reminders'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {isCurrentUserAdmin
+                              ? 'Operational tasks, link review queue & crawler telemetry'
+                              : 'Upcoming statutory deadlines, filings & watchlist alerts'}
+                          </p>
+                        </div>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase font-mono border ${
+                            isCurrentUserAdmin
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                          }`}
+                        >
+                          {isCurrentUserAdmin ? 'Admin View' : 'User View'}
+                        </span>
+                      </div>
+
+                      {/* Reminder Items */}
+                      <div className="max-h-80 overflow-y-auto p-2 space-y-2 text-xs">
+                        {isCurrentUserAdmin ? (
+                          // ADMIN NOTIFICATIONS
+                          <>
+                            {/* Link Suggestions Queue */}
+                            <div className="p-2.5 rounded-lg bg-indigo-950/40 border border-indigo-500/40 hover:bg-indigo-950/60 transition-colors">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-start space-x-2">
+                                  <Link2 className="w-4 h-4 text-indigo-400 mt-0.5 shrink-0" />
+                                  <div>
+                                    <div className="font-semibold text-white">
+                                      User Link Submissions ({pendingLinkSuggestionsCount} Pending)
+                                    </div>
+                                    <p className="text-[11px] text-slate-300 mt-0.5">
+                                      Compliance analysts submitted link updates for official gazettes/portals.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-indigo-500/30 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleSelectTab('admin');
+                                    setIsBellOpen(false);
+                                  }}
+                                  className="text-[11px] font-bold text-indigo-300 hover:text-white flex items-center space-x-1 cursor-pointer"
+                                >
+                                  <span>Review in Link Integrity</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Unverified Links Audit */}
+                            <div className="p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 hover:bg-amber-950/60 transition-colors">
+                              <div className="flex items-start space-x-2">
+                                <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                                <div>
+                                  <div className="font-semibold text-white">Statutory Link Integrity Audit</div>
+                                  <p className="text-[11px] text-slate-300 mt-0.5">
+                                    3 regulations require official link updates or secondary PDF gazette confirmation.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-amber-500/30 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleSelectTab('admin');
+                                    setIsBellOpen(false);
+                                  }}
+                                  className="text-[11px] font-bold text-amber-300 hover:text-white flex items-center space-x-1 cursor-pointer"
+                                >
+                                  <span>Audit Regulatory Links</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Automated Crawler Run */}
+                            <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 hover:border-slate-700 transition-colors">
+                              <div className="flex items-start space-x-2">
+                                <RefreshCw className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                                <div>
+                                  <div className="font-semibold text-white">Weekly Scraper Daemon</div>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">
+                                    Scheduled crawler crawls 51 official portals across 24 MENAT jurisdictions. Probes every 12h.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-slate-800 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleSelectTab('sources');
+                                    setIsBellOpen(false);
+                                  }}
+                                  className="text-[11px] font-bold text-emerald-400 hover:underline flex items-center space-x-1 cursor-pointer"
+                                >
+                                  <span>View Tracked Sources</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          // NORMAL USER NOTIFICATIONS
+                          <>
+                            {/* SDAIA Cross-Border SCCs */}
+                            <div className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-500/40 hover:bg-rose-950/60 transition-colors">
+                              <div className="flex items-start space-x-2">
+                                <ShieldAlert className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
+                                <div>
+                                  <div className="font-semibold text-white">SDAIA Cross-Border SCCs Filing Due</div>
+                                  <p className="text-[11px] text-slate-300 mt-0.5">
+                                    Mandatory standard contractual clauses registration cycle in effect. Review requirements and submit documentation.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-rose-500/30 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleSelectTab('regulations');
+                                    setIsBellOpen(false);
+                                  }}
+                                  className="text-[11px] font-bold text-rose-300 hover:text-white flex items-center space-x-1 cursor-pointer"
+                                >
+                                  <span>View Requirement</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Qatar NCF v2.0 */}
+                            <div className="p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 hover:bg-amber-950/60 transition-colors">
+                              <div className="flex items-start space-x-2">
+                                <CalendarClock className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                                <div>
+                                  <div className="font-semibold text-white">Qatar NCF v2.0 Critical Infrastructure</div>
+                                  <p className="text-[11px] text-slate-300 mt-0.5">
+                                    Mandatory compliance dossier submission to NCSA portal due Oct 31, 2026.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-amber-500/30 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleSelectTab('regulations');
+                                    setIsBellOpen(false);
+                                  }}
+                                  className="text-[11px] font-bold text-amber-300 hover:text-white flex items-center space-x-1 cursor-pointer"
+                                >
+                                  <span>View Regulation</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* CBUAE Cyber Risk Management Framework */}
+                            <div className="p-2.5 rounded-lg bg-teal-950/40 border border-teal-500/40 hover:bg-teal-950/60 transition-colors">
+                              <div className="flex items-start space-x-2">
+                                <Scale className="w-4 h-4 text-teal-400 mt-0.5 shrink-0" />
+                                <div>
+                                  <div className="font-semibold text-white">CBUAE Cyber Risk Annual Attestation</div>
+                                  <p className="text-[11px] text-slate-300 mt-0.5">
+                                    Annual board sign-off and third-party vendor cyber risk assessment due.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-teal-500/30 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleSelectTab('regulations');
+                                    setIsBellOpen(false);
+                                  }}
+                                  className="text-[11px] font-bold text-teal-300 hover:text-white flex items-center space-x-1 cursor-pointer"
+                                >
+                                  <span>View Framework</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Watchlist Trackers */}
+                            <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 hover:border-slate-700 transition-colors">
+                              <div className="flex items-start space-x-2">
+                                <BellRing className="w-4 h-4 text-indigo-400 mt-0.5 shrink-0" />
+                                <div>
+                                  <div className="font-semibold text-white">Watchlist Trackers ({watchlistCount} Pinned)</div>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">
+                                    Real-time tracking for your pinned sovereign regulations.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-slate-800 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleSelectTab('watchlist');
+                                    setIsBellOpen(false);
+                                  }}
+                                  className="text-[11px] font-bold text-indigo-300 hover:text-white flex items-center space-x-1 cursor-pointer"
+                                >
+                                  <span>Open Watchlist</span>
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Footer Actions */}
+                      <div className="p-2 bg-slate-950/90 flex items-center justify-between text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isCurrentUserAdmin) {
+                              handleSelectTab('admin');
+                            } else {
+                              handleSelectTab('watchlist');
+                            }
+                            setIsBellOpen(false);
+                          }}
+                          className="text-slate-400 hover:text-white font-medium cursor-pointer"
+                        >
+                          {isCurrentUserAdmin ? 'Open Admin Console' : 'View Watchlist Trackers'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsBellOpen(false)}
+                          className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Scraper Sync Button & Live Status */}
             {featureFlags.sourcesManager && (
@@ -600,7 +875,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 onClick={onOpenAIChat}
                 className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer"
-                title="Launch Gemini Regulatory AI Copilot (Search Grounded)"
+                title="Launch Autonomous Regulatory AI Copilot (Search Grounded)"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">AI Copilot</span>

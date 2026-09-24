@@ -235,6 +235,16 @@ export const TrackedSourcesManager: React.FC<TrackedSourcesManagerProps> = ({
   const verifiedSources = sources.filter((s) => s.status === 'Active & Verified').length;
   const distinctCountriesTracked = new Set(sources.map((s) => s.countryId)).size;
 
+  const middleEastSourcesCount = sources.filter((s) => {
+    const c = countries.find((cnt) => cnt.id === s.countryId);
+    return c?.macroRegion === 'Middle East';
+  }).length;
+
+  const northAfricaSourcesCount = sources.filter((s) => {
+    const c = countries.find((cnt) => cnt.id === s.countryId);
+    return c?.macroRegion === 'North Africa, The Sahel, & Horn of Africa';
+  }).length;
+
   return (
     <div className="space-y-6">
       {/* Top Banner & Overview */}
@@ -278,9 +288,9 @@ export const TrackedSourcesManager: React.FC<TrackedSourcesManagerProps> = ({
                 <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
                 Live HTTP Probes: <strong className="ml-1 text-white">{verifiedSources} Online (200 OK)</strong>
               </span>
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400" title="51 monitored official gazettes and agency portals distributed across 24 sovereign MENAT nations">
                 <Globe2 className="w-3.5 h-3.5 mr-1.5" />
-                Coverage: <strong className="ml-1 text-white">{distinctCountriesTracked} of 24 Jurisdictions</strong>
+                Monitored Portals: <strong className="ml-1 text-white">{totalSources} across {distinctCountriesTracked} Sovereign States</strong>
               </span>
             </div>
           </div>
@@ -364,7 +374,7 @@ export const TrackedSourcesManager: React.FC<TrackedSourcesManagerProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              All Regions ({totalSources})
+              All 24 Sovereign States ({totalSources} Portals)
             </button>
             <button
               onClick={() => setMacroRegionFilter('Middle East')}
@@ -374,7 +384,7 @@ export const TrackedSourcesManager: React.FC<TrackedSourcesManagerProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Middle East (14 Countries)
+              Middle East (14 States • {middleEastSourcesCount} Portals)
             </button>
             <button
               onClick={() => setMacroRegionFilter('North Africa, The Sahel, & Horn of Africa')}
@@ -384,7 +394,7 @@ export const TrackedSourcesManager: React.FC<TrackedSourcesManagerProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              North Africa, Sahel & Horn (10 Countries)
+              North Africa & Horn (10 States • {northAfricaSourcesCount} Portals)
             </button>
           </div>
 

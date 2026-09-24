@@ -266,7 +266,7 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
                   Compliance<span className="text-cyan-400">IQ</span> Copilot
                 </h2>
                 <span className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 rounded-full font-mono">
-                  Gemini 3.5 Flash
+                  Autonomous AI Model
                 </span>
               </div>
               <p className="text-xs text-slate-400">

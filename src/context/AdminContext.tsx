@@ -7,13 +7,14 @@ import {
   SystemBroadcast,
   AuditLogEntry,
   UserRoleType,
+  LinkSuggestion,
 } from '../types/admin';
 
 export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'ciadmin1',
     username: 'ciadmin1',
-    password: 'ciadmin123',
+    password: 'cisadmin123',
     name: 'ciadmin1',
     email: 'ciadmin1@complianceiq.io',
     role: 'admin',
@@ -41,7 +42,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'ciadmin2',
     username: 'ciadmin2',
-    password: 'ciadmin123',
+    password: 'cisadmin123',
     name: 'ciadmin2',
     email: 'ciadmin2@complianceiq.io',
     role: 'admin',
@@ -224,6 +225,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   exportReports: true,
   watchlistAlerts: true,
   systemBroadcast: true,
+  smartInsights: true,
 };
 
 export const DEFAULT_BROADCAST: SystemBroadcast = {
@@ -317,6 +319,7 @@ const STORAGE_KEYS = {
   COUNTRIES: 'complianceiq_countries_v3',
   BROADCAST: 'complianceiq_broadcast_v3',
   AUDIT_LOGS: 'complianceiq_audit_logs_v3',
+  LINK_SUGGESTIONS: 'complianceiq_link_suggestions_v3',
 };
 
 interface AdminContextType {
@@ -388,6 +391,20 @@ interface AdminContextType {
   runLinkAudit: () => Promise<void>;
   getLinkAudit: (regulationId: string, field: 'officialUrl' | 'documentPdfUrl') => RegulatoryLinkAuditResult | undefined;
   fetchLinkAudits: () => void;
+
+  // User-Submitted Link Correction Workflow
+  linkSuggestions: LinkSuggestion[];
+  submitLinkSuggestion: (
+    regulationId: string,
+    linkType: 'officialUrl' | 'documentPdfUrl',
+    suggestedUrl: string,
+    notes?: string
+  ) => { success: boolean; message: string };
+  reviewLinkSuggestion: (
+    suggestionId: string,
+    action: 'accept' | 'reject',
+    adminNotes?: string
+  ) => void;
 }
 
 export interface RegulatoryLinkAuditResult {
@@ -547,14 +564,29 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Dynamically calculate synchronized regulation counts for each country
   const countries: Country[] = countriesRaw.map((country) => {
-    const countryRegs = regulations.filter((r) => r.countryId.toLowerCase() === country.id.toLowerCase());
-    const techCount = countryRegs.filter((r) => r.isTech).length;
-    const nonTechCount = countryRegs.filter((r) => !r.isTech).length;
+    const cId = country.id.toLowerCase();
+    const cCode = country.code.toLowerCase();
+    const cName = country.name.toLowerCase();
+
+    const countryRegs = regulations.filter((r) => {
+      const rId = (r.countryId || '').toLowerCase();
+      return (
+        rId === cId ||
+        rId === cCode ||
+        (cId === 'uae' && (rId === 'ae' || rId.includes('emirates') || rId.includes('uae'))) ||
+        (cId === 'ksa' && (rId === 'sa' || rId.includes('saudi') || rId.includes('ksa'))) ||
+        (cName && rId.includes(cName))
+      );
+    });
+
+    const techCount = countryRegs.filter((r) => r.isTech || r.regulationNature === 'Tech' || r.regulationNature === 'Hybrid').length;
+    const nonTechCount = countryRegs.filter((r) => (!r.isTech && r.regulationNature === 'Non-Tech') || (!r.isTech && !r.regulationNature)).length;
+
     return {
       ...country,
-      totalRegulationsCount: countryRegs.length > 0 ? countryRegs.length : country.totalRegulationsCount,
-      techRegulationsCount: countryRegs.length > 0 ? techCount : country.techRegulationsCount,
-      nonTechRegulationsCount: countryRegs.length > 0 ? nonTechCount : country.nonTechRegulationsCount,
+      totalRegulationsCount: countryRegs.length,
+      techRegulationsCount: techCount,
+      nonTechRegulationsCount: nonTechCount,
     };
   });
 
@@ -596,6 +628,187 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [linkAudits, setLinkAudits] = useState<Record<string, RegulatoryLinkAuditResult>>({});
   const [isLinkAuditRunning, setIsLinkAuditRunning] = useState(false);
   const [lastLinkAuditTimestamp, setLastLinkAuditTimestamp] = useState<string | null>(null);
+
+  // 7. User-Submitted Link Suggestions State
+  const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.LINK_SUGGESTIONS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return [
+      {
+        id: 'sug-ksa-pdpl',
+        regulationId: 'ksa-pdpl',
+        regulationCode: 'Saudi PDPL (M/19)',
+        regulationName: 'Personal Data Protection Law (PDPL)',
+        linkType: 'documentPdfUrl',
+        currentUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/Personal%20Data%20English%20V2-23April2023-%20Reviewed-.pdf',
+        suggestedUrl: 'https://sdaia.gov.sa/en/SDAIA/about/Documents/Personal%20Data%20English%20V2-23April2023-%20Reviewed-.pdf',
+        notes: 'Direct official English translation published on the SDAIA national portal with verified legal definitions.',
+        submittedByUserId: 'sasuser1',
+        submittedByUserName: 'sasuser1 (Senior Compliance Officer)',
+        submittedAt: '2026-09-22 14:30 UTC',
+        status: 'pending',
+      },
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.LINK_SUGGESTIONS, JSON.stringify(linkSuggestions));
+    } catch {
+      // ignore
+    }
+  }, [linkSuggestions]);
+
+  const submitLinkSuggestion = (
+    regulationId: string,
+    linkType: 'officialUrl' | 'documentPdfUrl',
+    suggestedUrl: string,
+    notes?: string
+  ): { success: boolean; message: string } => {
+    const trimmed = suggestedUrl.trim();
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      return { success: false, message: 'Please enter a valid URL starting with http:// or https://' };
+    }
+
+    const targetReg = regulations.find((r) => r.id === regulationId);
+    if (!targetReg) {
+      return { success: false, message: 'Target regulation not found.' };
+    }
+
+    const currentUrl = linkType === 'officialUrl' ? targetReg.officialUrl : targetReg.documentPdfUrl;
+
+    const newSuggestion: LinkSuggestion = {
+      id: `sug_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      regulationId,
+      regulationCode: targetReg.code,
+      regulationName: targetReg.name,
+      linkType,
+      currentUrl: currentUrl || 'N/A',
+      suggestedUrl: trimmed,
+      notes: notes?.trim() || 'User submitted verified alternative mirror link.',
+      submittedByUserId: currentUser.id,
+      submittedByUserName: `${currentUser.name} (${currentUser.roleLabel})`,
+      submittedAt: new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC',
+      status: 'pending',
+    };
+
+    setLinkSuggestions((prev) => [newSuggestion, ...prev]);
+
+    addAuditLog(
+      'REGULATION_LINK_UPDATED',
+      targetReg.code,
+      `User ${currentUser.name} submitted working link suggestion for ${linkType === 'officialUrl' ? 'Portal' : 'PDF'}: ${trimmed}`
+    );
+
+    return {
+      success: true,
+      message: 'Working link request submitted to Administrator for review and verification.',
+    };
+  };
+
+  const reviewLinkSuggestion = (
+    suggestionId: string,
+    action: 'accept' | 'reject',
+    adminNotes?: string
+  ) => {
+    const suggestion = linkSuggestions.find((s) => s.id === suggestionId);
+    if (!suggestion) return;
+
+    if (action === 'accept') {
+      // 1. Update regulation link in state & persistence
+      setRegulations((prev) => {
+        const next = prev.map((r) => {
+          if (r.id === suggestion.regulationId) {
+            return {
+              ...r,
+              [suggestion.linkType]: suggestion.suggestedUrl,
+              lastUpdated: new Date().toISOString().split('T')[0],
+            };
+          }
+          return r;
+        });
+        try {
+          localStorage.setItem(STORAGE_KEYS.REGULATIONS, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      // 2. Mark this link as verified in linkAudits
+      const auditKey = `${suggestion.regulationId}:${suggestion.linkType}`;
+      const targetReg = regulations.find((r) => r.id === suggestion.regulationId);
+      setLinkAudits((prev) => {
+        const existing = prev[auditKey];
+        return {
+          ...prev,
+          [auditKey]: {
+            id: auditKey,
+            regulationId: suggestion.regulationId,
+            regulationCode: suggestion.regulationCode,
+            regulationName: suggestion.regulationName,
+            countryId: targetReg?.countryId || existing?.countryId || 'SA',
+            authority: targetReg?.authority || existing?.authority || 'Regulator',
+            field: suggestion.linkType,
+            isPdf: suggestion.linkType === 'documentPdfUrl',
+            url: suggestion.suggestedUrl,
+            status: 200,
+            statusText: 'Verified & Approved by Admin',
+            responseTimeMs: existing?.responseTimeMs || 120,
+            isReachable: true,
+            isBroken: false,
+            isRedirect: false,
+            lastChecked: new Date().toISOString(),
+          },
+        };
+      });
+
+      // 3. Mark suggestion as accepted
+      setLinkSuggestions((prev) =>
+        prev.map((s) =>
+          s.id === suggestionId
+            ? {
+                ...s,
+                status: 'accepted' as const,
+                reviewedAt: new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC',
+                reviewedBy: currentUser.name,
+              }
+            : s
+        )
+      );
+
+      addAuditLog(
+        'REGULATION_LINK_UPDATED',
+        suggestion.regulationCode,
+        `Admin accepted user link submission. Updated ${suggestion.linkType} to "${suggestion.suggestedUrl}" and marked link as verified.`
+      );
+    } else {
+      // Mark suggestion as rejected
+      setLinkSuggestions((prev) =>
+        prev.map((s) =>
+          s.id === suggestionId
+            ? {
+                ...s,
+                status: 'rejected' as const,
+                reviewedAt: new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC',
+                reviewedBy: currentUser.name,
+              }
+            : s
+        )
+      );
+
+      addAuditLog(
+        'REGULATION_LINK_UPDATED',
+        suggestion.regulationCode,
+        `Admin rejected user link submission for "${suggestion.suggestedUrl}". Reason: ${adminNotes || 'Declined'}.`
+      );
+    }
+  };
 
   const fetchLinkAudits = () => {
     fetch('/api/admin/links/audit-status')
@@ -740,15 +953,14 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, message: `Account "${target.username}" is suspended.` };
     }
 
-    const expectedPassword = target.password || (target.isAdmin ? 'ciadmin123' : 'sasuser123');
     const validPasswords = [
-      expectedPassword,
+      target.password,
+      target.isAdmin ? 'cisadmin123' : 'sasuser123',
       target.isAdmin ? 'ciadmin123' : 'sasuser123',
-      target.isAdmin ? 'admin123' : 'user123',
-      target.username,
-    ];
+    ].filter(Boolean) as string[];
+
     if (!validPasswords.includes(cleanPass)) {
-      return { success: false, message: `Invalid password for ${target.username}. Use simple password "${expectedPassword}".` };
+      return { success: false, message: 'Invalid username or password.' };
     }
     setCurrentUserId(target.id);
     setIsAuthenticated(true);
@@ -807,7 +1019,12 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const unlockAdmin = (password: string): boolean => {
     const clean = password.trim();
-    if (clean === 'ciadmin123' || clean === 'admin123' || (currentUser.isAdmin && clean === currentUser.password)) {
+    if (
+      clean === 'cisadmin123' ||
+      clean === 'ciadmin123' ||
+      clean === 'admin123' ||
+      (currentUser.isAdmin && clean === currentUser.password)
+    ) {
       setIsAdminUnlocked(true);
       try {
         sessionStorage.setItem(STORAGE_KEYS.ADMIN_UNLOCKED, 'true');
@@ -1249,6 +1466,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         runLinkAudit,
         getLinkAudit,
         fetchLinkAudits,
+
+        linkSuggestions,
+        submitLinkSuggestion,
+        reviewLinkSuggestion,
       }}
     >
       {children}

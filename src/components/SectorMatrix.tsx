@@ -342,26 +342,18 @@ export const SectorMatrix: React.FC<SectorMatrixProps> = ({ regulations, onSelec
                     </div>
 
                     <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                      <span className="text-slate-400 text-[11px] truncate max-w-[140px]">
+                      <span className="text-slate-400 text-[11px] truncate max-w-[180px]">
                         {reg.authorityShort}
                       </span>
                       <div className="flex items-center space-x-2">
-                        <button
-                          type="button"
-                          onClick={() => onSelectRegulation(reg.id)}
-                          className="text-slate-300 hover:text-white flex items-center space-x-1 font-medium text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
-                          title="Inspect controls and statutory details in Registry"
-                        >
-                          <span>Inspect</span>
-                          <ArrowRight className="w-3 h-3 text-emerald-400" />
-                        </button>
                         <a
                           href={reg.officialUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-emerald-400 hover:text-emerald-300 flex items-center space-x-1 font-medium text-xs px-2 py-1"
+                          className="text-emerald-400 hover:text-emerald-300 flex items-center space-x-1 font-medium text-xs px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/30 transition-colors"
+                          title="Open official statutory portal or gazette"
                         >
-                          <span>Gazette</span>
+                          <span>Official Gazette</span>
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>

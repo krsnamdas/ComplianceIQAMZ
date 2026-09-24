@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { Regulation } from '../../types/regulatory';
+import { LinkSuggestionsQueueTab } from './LinkSuggestionsQueueTab';
 import {
   OFFICIAL_GOVERNMENT_PORTALS,
   OfficialGovernmentPortal,
@@ -58,7 +59,11 @@ export const LinkIntegrityTab: React.FC = () => {
     lastLinkAuditTimestamp,
     runLinkAudit,
     fetchLinkAudits,
+    linkSuggestions = [],
   } = useAdmin();
+
+  // Sub-view toggle: systematic audit vs user link suggestions queue
+  const [activeSubView, setActiveSubView] = useState<'audit' | 'suggestions'>('audit');
 
   // Scraper metadata state
   const [scraperInfo, setScraperInfo] = useState<{
@@ -148,6 +153,9 @@ export const LinkIntegrityTab: React.FC = () => {
   const [isValidatingEditUrl, setIsValidatingEditUrl] = useState(false);
   const [validationResult, setValidationResult] = useState<LinkStatusInfo | null>(null);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+
+  // Architecture explainer state
+  const [showArchitectureExplainer, setShowArchitectureExplainer] = useState(false);
 
   // Single URL manual check in-progress state
   const [checkingSingleId, setCheckingSingleId] = useState<string | null>(null);
@@ -257,7 +265,7 @@ export const LinkIntegrityTab: React.FC = () => {
     };
   };
 
-  // Run Systematic Audit across all regulations
+  // Run Systematic Audit across all regulations in real-time batches
   const handleRunSystematicAudit = async () => {
     if (isScanning) return;
     setIsScanning(true);
@@ -267,77 +275,101 @@ export const LinkIntegrityTab: React.FC = () => {
       url: r.officialUrl,
     }));
 
-    setScanProgress({ current: 0, total: itemsToCheck.length, currentUrl: 'Initializing audit...' });
+    const totalItems = itemsToCheck.length;
+    setScanProgress({ current: 0, total: totalItems, currentUrl: 'Initializing audit pipeline...' });
+
+    const batchSize = 6;
+    const newStatuses: Record<string, LinkStatusInfo> = { ...statuses };
+    let verifiedHealthyCount = 0;
+    let verifiedBrokenCount = 0;
 
     try {
-      // Send batch to backend
-      const res = await fetch('/api/admin/check-links', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: itemsToCheck }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const newStatuses: Record<string, LinkStatusInfo> = { ...statuses };
-
-        if (Array.isArray(data.results)) {
-          data.results.forEach((item: any) => {
-            if (item.url) {
-              newStatuses[item.url] = {
-                url: item.url,
-                status: item.status,
-                statusText: item.statusText,
-                redirectUrl: item.redirectUrl,
-                responseTimeMs: item.responseTimeMs,
-                isOk: item.isOk,
-                isBroken: item.isBroken,
-                isRedirect: item.isRedirect,
-                isWafProtected: item.isWafProtected,
-                error: item.error,
-                lastChecked: new Date().toLocaleTimeString(),
-              };
-            }
-          });
-        }
-
-        setStatuses(newStatuses);
-        const timeStr = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
-        setLastScanTimestamp(timeStr);
-        sessionStorage.setItem('complianceiq_last_scan_time', timeStr);
-
-        addAuditLog(
-          'REGULATION_UPDATED',
-          'Link Integrity Audit',
-          `Ran systematic audit on ${itemsToCheck.length} statutory URLs. Verified ${data.summary?.healthyCount || 0} healthy, ${data.summary?.brokenCount || 0} broken.`
-        );
-      } else {
-        throw new Error('Batch check server response not OK');
-      }
-    } catch (err) {
-      console.warn('Backend batch check error, processing in concurrent chunks:', err);
-
-      // Client sequential fallback with progress bar
-      const newStatuses: Record<string, LinkStatusInfo> = { ...statuses };
-      for (let i = 0; i < itemsToCheck.length; i++) {
-        const item = itemsToCheck[i];
+      for (let i = 0; i < totalItems; i += batchSize) {
+        const batch = itemsToCheck.slice(i, i + batchSize);
         setScanProgress({
-          current: i + 1,
-          total: itemsToCheck.length,
-          currentUrl: item.url,
+          current: i,
+          total: totalItems,
+          currentUrl: batch[0]?.url || 'Processing batch...',
         });
 
-        const result = await verifySingleUrl(item.url);
-        newStatuses[item.url] = result;
+        try {
+          const res = await fetch('/api/admin/check-links', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: batch }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.results)) {
+              data.results.forEach((item: any) => {
+                if (item.url) {
+                  newStatuses[item.url] = {
+                    url: item.url,
+                    status: item.status,
+                    statusText: item.statusText,
+                    redirectUrl: item.redirectUrl,
+                    responseTimeMs: item.responseTimeMs,
+                    isOk: item.isOk,
+                    isBroken: item.isBroken,
+                    isRedirect: item.isRedirect,
+                    isWafProtected: item.isWafProtected,
+                    error: item.error,
+                    lastChecked: new Date().toLocaleTimeString(),
+                  };
+                  if (item.isOk && !item.isBroken) verifiedHealthyCount++;
+                  if (item.isBroken) verifiedBrokenCount++;
+                }
+              });
+            }
+          } else {
+            // Client fallback for this batch
+            for (const item of batch) {
+              const result = await verifySingleUrl(item.url);
+              newStatuses[item.url] = result;
+              if (result.isOk && !result.isBroken) verifiedHealthyCount++;
+              if (result.isBroken) verifiedBrokenCount++;
+            }
+          }
+        } catch {
+          // Fallback on network hiccup
+          for (const item of batch) {
+            const result = await verifySingleUrl(item.url);
+            newStatuses[item.url] = result;
+            if (result.isOk && !result.isBroken) verifiedHealthyCount++;
+            if (result.isBroken) verifiedBrokenCount++;
+          }
+        }
+
+        // Live progressive state updates
         setStatuses({ ...newStatuses });
+        setScanProgress({
+          current: Math.min(i + batch.length, totalItems),
+          total: totalItems,
+          currentUrl: batch[batch.length - 1]?.url || 'Auditing...',
+        });
+
+        // Small pause for smooth progress bar animation
+        await new Promise((r) => setTimeout(r, 120));
       }
 
       const timeStr = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
       setLastScanTimestamp(timeStr);
       sessionStorage.setItem('complianceiq_last_scan_time', timeStr);
+
+      addAuditLog(
+        'REGULATION_UPDATED',
+        'Link Integrity Audit',
+        `Ran systematic audit on ${totalItems} statutory URLs. Verified ${verifiedHealthyCount} healthy/WAF, ${verifiedBrokenCount} broken.`
+      );
+    } catch (err) {
+      console.warn('Backend batch check error:', err);
     } finally {
       setIsScanning(false);
-      setScanProgress({ current: 0, total: 0, currentUrl: '' });
+      setScanProgress({ current: totalItems, total: totalItems, currentUrl: 'Audit Complete' });
+      setTimeout(() => {
+        setScanProgress({ current: 0, total: 0, currentUrl: '' });
+      }, 1500);
     }
   };
 
@@ -475,10 +507,60 @@ export const LinkIntegrityTab: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const pendingSuggestionsCount = linkSuggestions.filter((s) => s.status === 'pending').length;
+
   return (
     <div className="space-y-6">
-      {/* Top Banner & Control Plane */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+      {/* Sub-Navigation: Systematic Audit vs User Link Suggestions Queue */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-2.5 rounded-2xl shadow-md">
+        <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            onClick={() => setActiveSubView('audit')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer ${
+              activeSubView === 'audit'
+                ? 'bg-cyan-600 text-white shadow-md ring-1 ring-cyan-400/40'
+                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Systematic 404 &amp; Reachability Scanner</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubView('suggestions')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer ${
+              activeSubView === 'suggestions'
+                ? 'bg-indigo-600 text-white shadow-md ring-1 ring-indigo-400/40'
+                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Link2 className="w-4 h-4" />
+            <span>User Link Suggestions Queue</span>
+            {pendingSuggestionsCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950 font-mono animate-pulse">
+                {pendingSuggestionsCount} Pending
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="text-xs text-slate-400 pr-2 hidden sm:block">
+          {activeSubView === 'audit' ? (
+            <span>Tracking 51 sovereign portals across 24 MENAT nations</span>
+          ) : (
+            <span>{linkSuggestions.length} community &amp; analyst submissions</span>
+          )}
+        </div>
+      </div>
+
+      {activeSubView === 'suggestions' ? (
+        <LinkSuggestionsQueueTab />
+      ) : (
+        <>
+          {/* Top Banner & Control Plane */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
@@ -566,8 +648,84 @@ export const LinkIntegrityTab: React.FC = () => {
               <Download className="w-4 h-4 text-emerald-400" />
               <span>Export CSV</span>
             </button>
+
+            <button
+              onClick={() => setShowArchitectureExplainer(!showArchitectureExplainer)}
+              className={`px-3 py-2.5 rounded-xl text-xs font-semibold border flex items-center space-x-1.5 transition-all cursor-pointer ${
+                showArchitectureExplainer
+                  ? 'bg-cyan-950/80 border-cyan-500 text-cyan-300 ring-1 ring-cyan-500/40'
+                  : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+              }`}
+              title="View functional breakdown between Daemon Reachability Probe vs Systematic Audit"
+            >
+              <HelpCircle className="w-4 h-4 text-cyan-400" />
+              <span>Probe vs Audit Explained</span>
+            </button>
           </div>
         </div>
+
+        {/* Informative Architectural Explainer: Daemon Probe vs Systematic Audit */}
+        {showArchitectureExplainer && (
+          <div className="mt-5 p-5 rounded-2xl bg-slate-950 border border-cyan-500/30 text-xs shadow-lg animate-in fade-in duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                <span className="font-bold text-white uppercase font-mono tracking-wider">
+                  Architectural Distinction: Daemon Reachability Probe vs. Systematic Integrity Audit
+                </span>
+              </div>
+              <button
+                onClick={() => setShowArchitectureExplainer(false)}
+                className="text-slate-400 hover:text-white text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Daemon Card */}
+              <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-teal-400" />
+                  <h4 className="font-bold text-teal-300 text-sm">1. Daemon Reachability Probe (Passive Heartbeat)</h4>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  <strong>What it does:</strong> Executes an automated background probe across the <strong>51 sovereign portal gateways</strong> (central banks, cybersecurity authorities, official gazettes). Runs on a scheduled 12-hour daemon timer.
+                </p>
+                <p className="text-slate-400 text-[11px] leading-relaxed">
+                  <strong>Methodology:</strong> Performs lightweight HTTP handshake and TLS verification to detect sovereign infrastructure outages without blocking the administrative UI or making heavy payload requests.
+                </p>
+                <div className="text-[10px] text-teal-400/90 font-mono bg-teal-950/40 p-2 rounded border border-teal-800/40">
+                  Role: Macro-level early warning system for regional gazette uptime.
+                </div>
+              </div>
+
+              {/* Systematic Audit Card */}
+              <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
+                  <h4 className="font-bold text-cyan-300 text-sm">2. Systematic Integrity Audit (Deep Statutory Audit)</h4>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  <strong>What it does:</strong> An on-demand, in-depth verification executed across <strong>all 80+ individual statutory acts, decrees, and PDF instruments</strong> in the repository.
+                </p>
+                <p className="text-slate-400 text-[11px] leading-relaxed">
+                  <strong>Methodology:</strong> Traverses multi-hop redirect chains (301/302), checks for WAF shielding, identifies dead documents (404/410), updates live UI status badges, and logs immutable entries into the Admin Audit Trail.
+                </p>
+                <div className="text-[10px] text-cyan-400/90 font-mono bg-cyan-950/40 p-2 rounded border border-cyan-800/40">
+                  Role: Micro-level legal document validation and link remediation queue feeder.
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-start space-x-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="text-[11px] text-slate-300">
+                <strong className="text-white">Are their tasks duplicated?</strong> No. The tasks are strictly complementary: the <em>Daemon</em> ensures national servers are responding at the edge (infrastructure health), while the <em>Systematic Audit</em> verifies that individual legal citations and PDF downloads remain accessible and uncorrupted for compliance users (legal integrity).
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Progress Bar during active scan */}
         {isScanning && (
@@ -1115,6 +1273,8 @@ export const LinkIntegrityTab: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

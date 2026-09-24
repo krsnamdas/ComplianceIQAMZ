@@ -51,9 +51,10 @@ import { Search, Filter, Shield, Globe2, BookOpen, Layers, CheckCircle2, AlertCi
 
 export default function App() {
   const { canManageWatchlist, canTriggerScraper, triggerRestrictedAction } = useRBAC();
-  const { regulations, featureFlags, isAuthenticated, addAuditLog } = useAdmin();
+  const { regulations, countries, featureFlags, isAuthenticated, addAuditLog } = useAdmin();
 
   const [activeTab, setActiveTab] = useState<NavigationTab>('overview');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [targetModuleNameForLogin, setTargetModuleNameForLogin] = useState<string>('');
   const [pendingTabAfterLogin, setPendingTabAfterLogin] = useState<NavigationTab | null>(null);
@@ -399,6 +400,8 @@ export default function App() {
     if (techFilter === 'tech' && !r.isTech) return false;
     if (techFilter === 'non_tech' && r.isTech) return false;
 
+    if (categoryFilter !== 'all' && r.category !== categoryFilter) return false;
+
     if (sectorFilter !== 'all' && !r.targetSectors.includes(sectorFilter as any)) return false;
 
     if (searchTerm) {
@@ -426,7 +429,7 @@ export default function App() {
     return true;
   });
 
-  const selectedCountryObj = MENAT_COUNTRIES.find((c) => c.id === selectedCountryId);
+  const selectedCountryObj = countries.find((c) => c.id === selectedCountryId);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
@@ -479,7 +482,7 @@ export default function App() {
         {/* VIEW 1: Jurisdictions Overview */}
         {activeTab === 'overview' && (
           <CountryOverview
-            countries={MENAT_COUNTRIES}
+            countries={countries}
             selectedCountryId={selectedCountryId}
             onSelectCountry={(id) => setSelectedCountryId(id)}
             onViewRegulations={handleSelectCountryFromOverview}
@@ -556,9 +559,9 @@ export default function App() {
                       className="px-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-lg text-white font-medium focus:outline-none focus:border-emerald-500"
                     >
                       <option value="all">All 24 Jurisdictions</option>
-                      {MENAT_COUNTRIES.map((c) => (
+                      {countries.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.flag} {c.name}
+                          {c.flag} {c.name} ({c.totalRegulationsCount || 0})
                         </option>
                       ))}
                     </select>
@@ -580,7 +583,7 @@ export default function App() {
               </div>
 
               {/* Filtering Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-slate-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-3 border-t border-slate-800">
                 {/* Search */}
                 <div className="relative">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -603,6 +606,27 @@ export default function App() {
                     <option value="all">Classification: Tech & Non-Tech</option>
                     <option value="tech">Tech Only (Cyber, AI, Cloud, Data, OT)</option>
                     <option value="non_tech">Non-Tech Only (Cybercrime, Penal, Commercial)</option>
+                  </select>
+                </div>
+
+                {/* Category Filter including Technology Risk(Others) */}
+                <div>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-emerald-500 truncate"
+                  >
+                    <option value="all">Category: All Categories</option>
+                    <option value="tech_cyber">Cybersecurity Baseline</option>
+                    <option value="tech_ai">Artificial Intelligence &amp; Governance</option>
+                    <option value="tech_data_privacy">Data Protection &amp; Sovereignty</option>
+                    <option value="tech_cloud">Cloud Computing &amp; Hyperscalers</option>
+                    <option value="tech_operational_resilience">Operational Resilience</option>
+                    <option value="tech_ot_ics">OT &amp; Critical Infrastructure (ICS/SCADA)</option>
+                    <option value="tech_space_quantum">Space &amp; Post-Quantum</option>
+                    <option value="tech_fintech_payments">FinTech &amp; Open Banking</option>
+                    <option value="tech_risk_others">Technology Risk(Others)</option>
+                    <option value="non_tech_impact">General Corporate Governance</option>
                   </select>
                 </div>
 
@@ -680,7 +704,7 @@ export default function App() {
                       ) : null}
                     </div>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Filters statutory regulations and requirement clauses based on backend Gemini legal confidence scores.
+                      Filters statutory regulations and requirement clauses based on Autonomous AI Model confidence scores.
                     </p>
                   </div>
                 </div>

@@ -37,21 +37,30 @@ interface FeatureMetadata {
 const FEATURE_METADATA_LIST: FeatureMetadata[] = [
   {
     key: 'regulatoryFeed',
-    title: 'Live Regulatory Radar & News Grounding Feed',
+    title: 'Live Regulatory Radar & Grounded News Feed',
     description:
-      'Enables the real-time MENAT radar scanner, official gazette feeds, and Google Search Grounded regulatory intelligence streams.',
+      'Enables the real-time MENAT radar scanner, official gazette feeds, and live web grounded regulatory intelligence streams.',
     icon: <Radio className="w-5 h-5 text-amber-400" />,
     category: 'Intelligence & AI',
     affectedViews: ['Navbar Radar Tab', 'RegulatoryRadar Component', 'Live Feeds'],
   },
   {
     key: 'geminiCopilot',
-    title: 'Gemini AI Regulatory Copilot',
+    title: 'Autonomous AI Regulatory Copilot',
     description:
-      'Provides conversational AI compliance advisory powered by Gemini 2.5 with live search grounding across 24 MENAT jurisdictions.',
+      'Provides conversational AI compliance advisory powered by advanced enterprise AI models with live search grounding across 24 MENAT jurisdictions.',
     icon: <Sparkles className="w-5 h-5 text-emerald-400" />,
     category: 'Intelligence & AI',
-    affectedViews: ['Navbar AI Copilot Button', 'GeminiComplianceChatbot Modal', 'Card Quick Explanations'],
+    affectedViews: ['Navbar AI Copilot Button', 'AIComplianceChatbot Modal', 'Card Quick Explanations'],
+  },
+  {
+    key: 'smartInsights',
+    title: 'Smart Insight Summary (Sector Mandates & Impact)',
+    description:
+      'Provides sector-specific AI statutory impact, architecture mandates, and enforcement risk breakdowns across regulations under each jurisdiction.',
+    icon: <Sparkles className="w-5 h-5 text-cyan-400" />,
+    category: 'Intelligence & AI',
+    affectedViews: ['RegulationCard Smart Insight Summary', 'Executive Sector Deep-Dives'],
   },
   {
     key: 'maturityHeatmap',

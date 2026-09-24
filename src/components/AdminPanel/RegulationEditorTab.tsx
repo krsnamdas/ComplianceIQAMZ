@@ -1,6 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import { Regulation, RegulatoryCategory, SectorType } from '../../types/regulatory';
+import { Regulation, RegulatoryCategory, SectorType, AuditFrequency, RegulationNature } from '../../types/regulatory';
+import {
+  AUDIT_FREQUENCY_OPTIONS,
+  REGULATION_NATURE_OPTIONS,
+  getAuditTimelineDefault,
+  formatEnactmentPeriod,
+} from '../../utils/auditTimelineHelper';
 import {
   Search,
   Plus,
@@ -19,6 +25,9 @@ import {
   Link as LinkIcon,
   Check,
   Building,
+  Clock,
+  Calendar,
+  ArrowUpDown,
 } from 'lucide-react';
 
 const ALL_SECTORS: SectorType[] = [
@@ -53,6 +62,7 @@ const CATEGORY_OPTIONS: { id: RegulatoryCategory; label: string }[] = [
   { id: 'tech_ot_ics', label: 'OT & Critical Infrastructure Cyber (ICS/SCADA)' },
   { id: 'tech_space_quantum', label: 'Space & Post-Quantum Cryptography' },
   { id: 'tech_fintech_payments', label: 'FinTech, Open Banking & Digital Assets' },
+  { id: 'tech_risk_others', label: 'Technology Risk(Others)' },
   { id: 'non_tech_impact', label: 'General Corporate Governance' },
 ];
 
@@ -72,6 +82,7 @@ export const RegulationEditorTab: React.FC = () => {
   const [countryFilter, setCountryFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'jurisdiction_category' | 'recent' | 'code'>('jurisdiction_category');
 
   // Modals state
   const [editingRegulation, setEditingRegulation] = useState<Regulation | null>(null);
@@ -88,9 +99,9 @@ export const RegulationEditorTab: React.FC = () => {
   // Quick link update inline states
   const [quickLinkSuccess, setQuickLinkSuccess] = useState<string | null>(null);
 
-  // Filtered regulations
+  // Filtered and Ordered regulations (ordered by jurisdiction and category by default)
   const filteredRegulations = useMemo(() => {
-    return regulations.filter((reg) => {
+    const list = regulations.filter((reg) => {
       const matchSearch =
         searchTerm === '' ||
         reg.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -98,13 +109,29 @@ export const RegulationEditorTab: React.FC = () => {
         reg.authority.toLowerCase().includes(searchTerm.toLowerCase()) ||
         reg.scopeSummary.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchCountry = countryFilter === 'all' || reg.countryId === countryFilter;
+      const matchCountry = countryFilter === 'all' || reg.countryId.toLowerCase() === countryFilter.toLowerCase();
       const matchCategory = categoryFilter === 'all' || reg.category === categoryFilter;
       const matchStatus = statusFilter === 'all' || reg.status === statusFilter;
 
       return matchSearch && matchCountry && matchCategory && matchStatus;
     });
-  }, [regulations, searchTerm, countryFilter, categoryFilter, statusFilter]);
+
+    return list.sort((a, b) => {
+      if (sortBy === 'jurisdiction_category') {
+        const countryA = countries.find((c) => c.id.toLowerCase() === a.countryId.toLowerCase())?.name || a.countryId;
+        const countryB = countries.find((c) => c.id.toLowerCase() === b.countryId.toLowerCase())?.name || b.countryId;
+        const cDiff = countryA.localeCompare(countryB);
+        if (cDiff !== 0) return cDiff;
+        const catDiff = (a.categoryLabel || a.category).localeCompare(b.categoryLabel || b.category);
+        if (catDiff !== 0) return catDiff;
+        return a.name.localeCompare(b.name);
+      } else if (sortBy === 'code') {
+        return a.code.localeCompare(b.code);
+      } else {
+        return (b.yearEnacted || 0) - (a.yearEnacted || 0);
+      }
+    });
+  }, [regulations, countries, searchTerm, countryFilter, categoryFilter, statusFilter, sortBy]);
 
   // Handle Quick Link Save
   const handleSaveQuickLink = (e: React.FormEvent) => {
@@ -122,7 +149,25 @@ export const RegulationEditorTab: React.FC = () => {
     e.preventDefault();
     if (!editingRegulation) return;
 
-    updateRegulation(editingRegulation.id, editingRegulation);
+    const normalizedPeriod = formatEnactmentPeriod(
+      editingRegulation.enactmentPeriod,
+      editingRegulation.effectiveDate,
+      editingRegulation.yearEnacted
+    );
+
+    const freq = editingRegulation.auditFrequency || 'Annually';
+    const nature = editingRegulation.regulationNature || (editingRegulation.isTech ? 'Tech' : 'Non-Tech');
+
+    const updated: Regulation = {
+      ...editingRegulation,
+      enactmentPeriod: normalizedPeriod,
+      auditFrequency: freq,
+      auditTimeline: editingRegulation.auditTimeline || getAuditTimelineDefault(freq),
+      regulationNature: nature,
+      isTech: nature === 'Tech' || nature === 'Hybrid',
+    };
+
+    updateRegulation(editingRegulation.id, updated);
     setEditingRegulation(null);
   };
 
@@ -197,7 +242,7 @@ export const RegulationEditorTab: React.FC = () => {
             <option value="all">All Jurisdictions ({countries.length})</option>
             {countries.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.flag} {c.name}
+                {c.flag} {c.name} ({c.totalRegulationsCount || 0})
               </option>
             ))}
           </select>
@@ -227,6 +272,18 @@ export const RegulationEditorTab: React.FC = () => {
             <option value="Amended">Amended</option>
             <option value="Draft / Public Consultation">Draft / Consultation</option>
           </select>
+
+          {/* Order / Sort Selector */}
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-1.5 text-xs rounded-lg bg-slate-950 border border-slate-700 text-cyan-300 focus:outline-none focus:border-cyan-500 font-semibold"
+            title="Sort and order regulations"
+          >
+            <option value="jurisdiction_category">Order: Jurisdiction & Category</option>
+            <option value="recent">Order: Newest Enactment</option>
+            <option value="code">Order: Code / Citation</option>
+          </select>
         </div>
       </div>
 
@@ -236,18 +293,19 @@ export const RegulationEditorTab: React.FC = () => {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
               <tr>
-                <th className="py-3 px-4">Jurisdiction & Code</th>
-                <th className="py-3 px-4">Statutory Regulation Name</th>
-                <th className="py-3 px-4">Authority & Category</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Official Links</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3 px-4 w-48 shrink-0 whitespace-nowrap">Jurisdiction &amp; Code</th>
+                <th className="py-3 px-4 min-w-[280px]">Statutory Regulation Name</th>
+                <th className="py-3 px-4 w-48 shrink-0">Authority &amp; Nature</th>
+                <th className="py-3 px-4 w-44 shrink-0 whitespace-nowrap">Enactment &amp; Assessment</th>
+                <th className="py-3 px-4 w-28 shrink-0 whitespace-nowrap">Status</th>
+                <th className="py-3 px-4 w-28 shrink-0 whitespace-nowrap text-center">Official Links</th>
+                <th className="py-3 px-4 w-24 shrink-0 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 text-slate-300">
               {filteredRegulations.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-500">
+                  <td colSpan={7} className="py-8 text-center text-slate-500">
                     No regulations matched your search filters.
                   </td>
                 </tr>
@@ -256,18 +314,22 @@ export const RegulationEditorTab: React.FC = () => {
                   const country = countries.find(
                     (c) => c.id.toLowerCase() === reg.countryId.toLowerCase()
                   );
+                  const nature = reg.regulationNature || (reg.isTech ? 'Tech' : 'Non-Tech');
+                  const enactmentStr = formatEnactmentPeriod(reg.enactmentPeriod, reg.effectiveDate, reg.yearEnacted);
+                  const reviewFreq = reg.auditFrequency || 'Annually';
+                  const timelineStr = reg.auditTimeline || getAuditTimelineDefault(reviewFreq);
 
                   return (
                     <tr key={reg.id} className="hover:bg-slate-800/40 transition-colors">
                       {/* Jurisdiction & Code */}
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 w-48 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
-                          <span className="text-base">{country?.flag || '🌐'}</span>
-                          <div>
-                            <span className="font-mono font-bold text-white block">
+                          <span className="text-base shrink-0">{country?.flag || '🌐'}</span>
+                          <div className="min-w-0">
+                            <span className="font-mono font-bold text-white block truncate">
                               {reg.code}
                             </span>
-                            <span className="text-[10px] text-slate-400">
+                            <span className="text-[10px] text-slate-400 block truncate">
                               {country?.name || reg.countryId.toUpperCase()}
                             </span>
                           </div>
@@ -275,8 +337,8 @@ export const RegulationEditorTab: React.FC = () => {
                       </td>
 
                       {/* Regulation Name */}
-                      <td className="py-3.5 px-4 max-w-xs">
-                        <div className="font-semibold text-white truncate" title={reg.name}>
+                      <td className="py-3.5 px-4 min-w-[280px]">
+                        <div className="font-semibold text-white" title={reg.name}>
                           {reg.name}
                         </div>
                         {reg.arabicName && (
@@ -287,23 +349,54 @@ export const RegulationEditorTab: React.FC = () => {
                             {reg.arabicName}
                           </div>
                         )}
-                        <p className="text-[11px] text-slate-400 line-clamp-1 mt-1">
+                        <p className="text-[11px] text-slate-400 line-clamp-2 mt-1">
                           {reg.scopeSummary}
                         </p>
                       </td>
 
-                      {/* Authority & Category */}
-                      <td className="py-3.5 px-4">
-                        <span className="font-medium text-slate-200 block truncate max-w-[180px]">
+                      {/* Authority & Nature */}
+                      <td className="py-3.5 px-4 w-48">
+                        <span className="font-medium text-slate-200 block truncate max-w-[170px]">
                           {reg.authority}
                         </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 inline-block mt-1 truncate max-w-[180px]">
-                          {reg.categoryLabel}
-                        </span>
+                        <div className="flex items-center space-x-1.5 mt-1 flex-wrap gap-1">
+                          <span
+                            className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${
+                              nature === 'Tech'
+                                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                : nature === 'Hybrid'
+                                ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                                : 'bg-slate-800 text-slate-400 border-slate-700'
+                            }`}
+                          >
+                            {nature}
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 truncate max-w-[120px]">
+                            {reg.categoryLabel}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Enactment Period & Assessment Frequency / Timeline */}
+                      <td className="py-3.5 px-4 w-44 whitespace-nowrap">
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-1.5 text-[11px] text-slate-200">
+                            <Calendar className="w-3 h-3 text-cyan-400 shrink-0" />
+                            <span className="font-mono font-bold text-cyan-300">{enactmentStr}</span>
+                            <span className="text-[10px] text-slate-500 font-normal">(Enactment)</span>
+                          </div>
+                          <div className="flex items-center space-x-1.5 text-[10px] text-slate-300">
+                            <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                            <span className="font-semibold text-amber-300">{reviewFreq}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono truncate max-w-[160px]" title={timelineStr}>
+                            {timelineStr}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Status */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
+                      <td className="py-3.5 px-4 w-28 whitespace-nowrap">
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                             reg.status === 'Enacted'
@@ -315,14 +408,11 @@ export const RegulationEditorTab: React.FC = () => {
                         >
                           {reg.status}
                         </span>
-                        <span className="block text-[10px] text-slate-400 mt-1">
-                          Enacted {reg.yearEnacted}
-                        </span>
                       </td>
 
                       {/* Official Links */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
+                      <td className="py-3.5 px-4 w-28 whitespace-nowrap text-center">
+                        <div className="flex items-center justify-center space-x-2">
                           {reg.officialUrl ? (
                             <a
                               href={reg.officialUrl}
@@ -368,7 +458,7 @@ export const RegulationEditorTab: React.FC = () => {
                       </td>
 
                       {/* Action Buttons */}
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                      <td className="py-3.5 px-4 w-24 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end space-x-1.5">
                           <button
                             onClick={() => setEditingRegulation({ ...reg })}
@@ -588,6 +678,95 @@ export const RegulationEditorTab: React.FC = () => {
                     <option value="Draft / Public Consultation">Draft / Public Consultation</option>
                   </select>
                 </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">
+                    Regulation Nature *
+                  </label>
+                  <select
+                    value={editingRegulation.regulationNature || (editingRegulation.isTech ? 'Tech' : 'Non-Tech')}
+                    onChange={(e) => {
+                      const nat = e.target.value as RegulationNature;
+                      setEditingRegulation({
+                        ...editingRegulation,
+                        regulationNature: nat,
+                        isTech: nat === 'Tech' || nat === 'Hybrid',
+                      });
+                    }}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {REGULATION_NATURE_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">
+                    Enactment Period (mm/yyyy) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="MM/YYYY (e.g. 09/2024)"
+                    value={editingRegulation.enactmentPeriod || formatEnactmentPeriod(undefined, editingRegulation.effectiveDate, editingRegulation.yearEnacted)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const parts = val.split('/');
+                      const year = parts.length === 2 && !isNaN(Number(parts[1])) ? Number(parts[1]) : editingRegulation.yearEnacted;
+                      setEditingRegulation({
+                        ...editingRegulation,
+                        enactmentPeriod: val,
+                        yearEnacted: year,
+                      });
+                    }}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                  <span className="text-[10px] text-slate-500">Format: Month/Year (e.g. 09/2024)</span>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">
+                    Period of Assessment / Review *
+                  </label>
+                  <select
+                    value={editingRegulation.auditFrequency || 'Annually'}
+                    onChange={(e) => {
+                      const newFreq = e.target.value as AuditFrequency;
+                      setEditingRegulation({
+                        ...editingRegulation,
+                        auditFrequency: newFreq,
+                        auditTimeline: getAuditTimelineDefault(newFreq),
+                      });
+                    }}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {AUDIT_FREQUENCY_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block font-semibold text-slate-300 mb-1">
+                    Audit Timeline & Attestation Window *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingRegulation.auditTimeline || getAuditTimelineDefault(editingRegulation.auditFrequency)}
+                    onChange={(e) =>
+                      setEditingRegulation({ ...editingRegulation, auditTimeline: e.target.value })
+                    }
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-mono"
+                    placeholder="e.g. Annual Audit Cycle (Q4 Mandatory Statutory Attestation)"
+                  />
+                  <span className="text-[10px] text-slate-500">Auto-filled based on assessment frequency; customizable</span>
+                </div>
               </div>
 
               <div>
@@ -751,9 +930,12 @@ const AddNewRegulationModal: React.FC<AddNewModalProps> = ({ onClose, onAdd }) =
   const [authority, setAuthority] = useState('');
   const [countryId, setCountryId] = useState(countries[0]?.id || 'ksa');
   const [category, setCategory] = useState<RegulatoryCategory>('tech_cyber');
-  const [isTech, setIsTech] = useState(true);
+  const [regulationNature, setRegulationNature] = useState<RegulationNature>('Tech');
   const [status, setStatus] = useState<'Enacted' | 'Amended' | 'Draft / Public Consultation'>('Enacted');
   const [yearEnacted, setYearEnacted] = useState(2026);
+  const [enactmentPeriod, setEnactmentPeriod] = useState('09/2026');
+  const [auditFrequency, setAuditFrequency] = useState<AuditFrequency>('Annually');
+  const [auditTimeline, setAuditTimeline] = useState(getAuditTimelineDefault('Annually'));
   const [scopeSummary, setScopeSummary] = useState('');
   const [officialUrl, setOfficialUrl] = useState('');
   const [documentPdfUrl, setDocumentPdfUrl] = useState('');
@@ -766,6 +948,7 @@ const AddNewRegulationModal: React.FC<AddNewModalProps> = ({ onClose, onAdd }) =
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const selCat = CATEGORY_OPTIONS.find((c) => c.id === category);
+    const normalizedPeriod = formatEnactmentPeriod(enactmentPeriod, `${yearEnacted}-01-01`, yearEnacted);
 
     const newRegulation: Omit<Regulation, 'id'> = {
       name,
@@ -776,10 +959,14 @@ const AddNewRegulationModal: React.FC<AddNewModalProps> = ({ onClose, onAdd }) =
       countryId,
       category,
       categoryLabel: selCat?.label || 'Cybersecurity Baseline',
-      isTech,
+      isTech: regulationNature === 'Tech' || regulationNature === 'Hybrid',
+      regulationNature,
       status,
       yearEnacted: Number(yearEnacted) || 2026,
+      enactmentPeriod: normalizedPeriod,
       effectiveDate: `${yearEnacted}-01-01`,
+      auditFrequency,
+      auditTimeline: auditTimeline || getAuditTimelineDefault(auditFrequency),
       lastUpdated: new Date().toISOString().split('T')[0],
       scopeSummary,
       officialUrl,
@@ -905,13 +1092,70 @@ const AddNewRegulationModal: React.FC<AddNewModalProps> = ({ onClose, onAdd }) =
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">Year Enacted</label>
-              <input
-                type="number"
-                value={yearEnacted}
-                onChange={(e) => setYearEnacted(Number(e.target.value))}
+              <label className="block font-semibold text-slate-300 mb-1">Regulation Nature *</label>
+              <select
+                value={regulationNature}
+                onChange={(e) => setRegulationNature(e.target.value as RegulationNature)}
                 className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+              >
+                {REGULATION_NATURE_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Enactment Period (mm/yyyy) *</label>
+              <input
+                type="text"
+                required
+                placeholder="MM/YYYY e.g. 09/2026"
+                value={enactmentPeriod}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEnactmentPeriod(val);
+                  const parts = val.split('/');
+                  if (parts.length === 2 && !isNaN(Number(parts[1]))) {
+                    setYearEnacted(Number(parts[1]));
+                  }
+                }}
+                className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-mono"
               />
+              <span className="text-[10px] text-slate-500">Format: Month/Year (e.g. 09/2026)</span>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Period of Assessment / Review *</label>
+              <select
+                value={auditFrequency}
+                onChange={(e) => {
+                  const freq = e.target.value as AuditFrequency;
+                  setAuditFrequency(freq);
+                  setAuditTimeline(getAuditTimelineDefault(freq));
+                }}
+                className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+              >
+                {AUDIT_FREQUENCY_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block font-semibold text-slate-300 mb-1">Audit Timeline & Attestation Window *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Annual Audit Cycle (Q4 Mandatory Statutory Attestation)"
+                value={auditTimeline}
+                onChange={(e) => setAuditTimeline(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-mono"
+              />
+              <span className="text-[10px] text-slate-500">Auto-filled based on assessment frequency; customizable</span>
             </div>
           </div>
 

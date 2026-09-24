@@ -97,7 +97,7 @@ export const ConfidenceLevelLegendModal: React.FC<ConfidenceLevelLegendModalProp
           <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
             <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-1.5">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-              <span>How Gemini Calculates the Confidence Interval</span>
+              <span>How the Autonomous AI Model Calculates the Confidence Interval</span>
             </h4>
             <p className="text-xs text-slate-300 leading-relaxed">
               The AI derives the statistical confidence interval <code className="font-mono text-cyan-300 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">[L_bound - U_bound]</code> via a 4-factor statutory jurist matrix:
@@ -133,7 +133,7 @@ export const ConfidenceLevelLegendModal: React.FC<ConfidenceLevelLegendModalProp
 
         {/* Footer */}
         <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
-          <span className="text-[11px] text-slate-500 font-mono">Model: Gemini 3.8 Flash Statutory Jurisprudence Engine</span>
+          <span className="text-[11px] text-slate-500 font-mono">Model: Autonomous Statutory AI Jurisprudence Engine</span>
           <button
             onClick={onClose}
             className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white transition-colors cursor-pointer"

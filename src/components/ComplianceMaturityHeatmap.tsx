@@ -966,7 +966,7 @@ export const ComplianceMaturityHeatmap: React.FC<ComplianceMaturityHeatmapProps>
                       Synthesizing Cross-Border Regulatory Intelligence...
                     </p>
                     <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                      Benchmarking statutory frameworks with Gemini 3.5 Flash and verifying against official MENAT gazette registries.
+                      Benchmarking statutory frameworks with Autonomous AI Model and verifying against official MENAT gazette registries.
                     </p>
                   </div>
                 </div>
@@ -1030,7 +1030,7 @@ export const ComplianceMaturityHeatmap: React.FC<ComplianceMaturityHeatmapProps>
             {/* Modal Footer */}
             <div className="flex items-center justify-between p-4 border-t border-slate-800 bg-slate-950/60">
               <span className="text-[11px] text-slate-500">
-                Powered by Gemini 3.5 Flash & Grounded MENAT Knowledge Engine
+                Powered by Autonomous AI Model &amp; Grounded MENAT Knowledge Engine
               </span>
               <div className="flex items-center gap-2">
                 <button

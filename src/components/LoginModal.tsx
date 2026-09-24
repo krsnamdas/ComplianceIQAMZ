@@ -125,9 +125,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 <label className="block text-xs font-semibold text-slate-300">
                   Password
                 </label>
-                <span className="text-[11px] text-slate-500">
-                  Default: <code className="text-emerald-400">sasuser123</code> or <code className="text-emerald-400">ciadmin123</code>
-                </span>
               </div>
               <div className="relative">
                 <Key className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
