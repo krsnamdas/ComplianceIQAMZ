@@ -12,7 +12,7 @@ import { RegulatoryTimeline } from './components/RegulatoryTimeline';
 import { RegulatoryWatchlist } from './components/RegulatoryWatchlist';
 import { ComplianceMaturityHeatmap } from './components/ComplianceMaturityHeatmap';
 import { RegulatoryRoadmap } from './components/RegulatoryRoadmap';
-import { GeminiComplianceChatbot } from './components/GeminiComplianceChatbot';
+import { AIComplianceCopilot } from './components/AIComplianceCopilot';
 import { RBACRestrictedModal } from './components/RBACRestrictedModal';
 import { AdminPanel } from './components/AdminPanel/AdminPanel';
 import { SystemBroadcastBanner } from './components/SystemBroadcastBanner';
@@ -155,16 +155,16 @@ export default function App() {
     setIsExportModalOpen(true);
   };
 
-  // Gemini AI Copilot State
+  // AI Copilot State
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [aiChatInitialPrompt, setAiChatInitialPrompt] = useState<string | undefined>(undefined);
 
   // Auto-close AI Copilot Chatbot if feature flag is toggled off
   useEffect(() => {
-    if (!featureFlags.geminiCopilot && isAIChatOpen) {
+    if (!featureFlags.aiCopilot && isAIChatOpen) {
       setIsAIChatOpen(false);
     }
-  }, [featureFlags.geminiCopilot, isAIChatOpen]);
+  }, [featureFlags.aiCopilot, isAIChatOpen]);
 
   // Regulatory Watchlist State (Persistent)
   const [watchlistPins, setWatchlistPins] = useState<WatchlistPin[]>(() => loadWatchlistPins());
@@ -957,7 +957,7 @@ export default function App() {
               setActiveTab('regulations');
             }}
             onOpenAIChatWithPrompt={
-              featureFlags.geminiCopilot
+              featureFlags.aiCopilot
                 ? (prompt) => {
                     setAiChatInitialPrompt(prompt);
                     setIsAIChatOpen(true);
@@ -1017,7 +1017,7 @@ export default function App() {
               setActiveTab('regulations');
             }}
             onOpenAIChatWithPrompt={
-              featureFlags.geminiCopilot
+              featureFlags.aiCopilot
                 ? (prompt) => {
                     setAiChatInitialPrompt(prompt);
                     setIsAIChatOpen(true);
@@ -1147,12 +1147,12 @@ export default function App() {
         onClose={() => setShowGlobalLegendModal(false)}
       />
 
-      {/* Floating Gemini AI Copilot Quick-Launch Button */}
-      {featureFlags.geminiCopilot && (
+      {/* Floating AI Copilot Quick-Launch Button */}
+      {featureFlags.aiCopilot && (
         <button
           onClick={() => setIsAIChatOpen(true)}
           className="fixed bottom-6 right-6 z-40 flex items-center space-x-2 px-4 py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-full shadow-2xl transition-all duration-200 transform hover:scale-105 active:scale-95 border border-emerald-400/40 group cursor-pointer animate-in fade-in zoom-in-95"
-          title="Open MENAT AI Compliance Copilot (Google Search Grounded)"
+          title="Open MENAT AI Compliance Copilot (AWS Bedrock)"
         >
           <div className="relative">
             <Sparkles className="w-5 h-5 text-white animate-pulse" />
@@ -1162,9 +1162,9 @@ export default function App() {
         </button>
       )}
 
-      {/* Gemini AI Copilot Chat Drawer */}
-      {featureFlags.geminiCopilot && (
-        <GeminiComplianceChatbot
+      {/* AI Compliance Copilot Chat Drawer */}
+      {featureFlags.aiCopilot && (
+        <AIComplianceCopilot
           isOpen={isAIChatOpen}
           onClose={() => setIsAIChatOpen(false)}
           initialPrompt={aiChatInitialPrompt}

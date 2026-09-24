@@ -881,8 +881,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            {/* Gemini Copilot */}
-            {featureFlags.geminiCopilot && onOpenAIChat && (
+            {/* AI Copilot */}
+            {featureFlags.aiCopilot && onOpenAIChat && (
               <button
                 type="button"
                 onClick={onOpenAIChat}

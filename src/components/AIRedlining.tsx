@@ -96,7 +96,7 @@ export const AIRedlining: React.FC<AIRedliningProps> = ({
     try {
       let finalResult: RedlineAnalysisResult;
 
-      // First attempt backend API call with Gemini enhancement
+      // First attempt backend API call with AI enhancement
       const res = await fetch('/api/ai/redline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

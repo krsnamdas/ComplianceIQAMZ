@@ -22,10 +22,10 @@ import {
   Lock,
   Flame,
 } from 'lucide-react';
-import { GeminiChatMessage } from '../types/heatmap';
+import { AIChatMessage } from '../types/heatmap';
 import { ComplianceIQLogo } from './ComplianceIQLogo';
 
-interface GeminiComplianceChatbotProps {
+interface AIComplianceCopilotProps {
   isOpen: boolean;
   onClose: () => void;
   initialPrompt?: string;
@@ -66,18 +66,23 @@ const PRESET_QUERIES = [
   'What are the cross-border data transfer requirements under Saudi PDPL?',
 ];
 
-export const GeminiComplianceChatbot: React.FC<GeminiComplianceChatbotProps> = ({
+const CHAT_STORAGE_KEY = 'menat_ai_copilot_chat_history';
+
+export const AIComplianceCopilot: React.FC<AIComplianceCopilotProps> = ({
   isOpen,
   onClose,
   initialPrompt,
 }) => {
-  const [messages, setMessages] = useState<GeminiChatMessage[]>(() => {
-    const saved = localStorage.getItem('menat_gemini_chat_history');
+  const [messages, setMessages] = useState<AIChatMessage[]>(() => {
+    // Try new key, fall back to legacy key for migrated users
+    const saved =
+      localStorage.getItem(CHAT_STORAGE_KEY) ||
+      localStorage.getItem('menat_gemini_chat_history');
     if (saved) {
       try {
         return JSON.parse(saved);
       } catch {
-        // ignore
+        // ignore parse errors
       }
     }
     return [
@@ -85,7 +90,7 @@ export const GeminiComplianceChatbot: React.FC<GeminiComplianceChatbotProps> = (
         id: 'welcome-msg',
         role: 'assistant',
         content: `### Welcome to ComplianceIQ Copilot
-**Middle East, North Africa & Türkiye Regulations & Controls **
+**Middle East, North Africa & Türkiye Regulations & Controls**
 
 I am your regulatory intelligence AI advisory assistant grounded in official MENAT statutory gazettes, national cybersecurity authorities (NCA, DESC, NCSA, USOM), and data protection frameworks (Saudi PDPL, UAE Law 45, Qatar PDPPL, Turkey KVKK).
 
@@ -93,9 +98,9 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
 - Benchmark regional regulatory density across AI, Cybersecurity, and Cloud Sovereignty.
 - Map local mandates directly to **NIST CSF 2.0**, **ISO/IEC 27001**, or **CSA CCM v4**.
 - Verify upcoming 2026-2027 statutory deadlines, penalty exposures, and executive liability rules.
-- Ground inquiries with live Google Search data for the latest gazette releases.`,
+- Search the web for the latest gazette releases via Tavily.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        modelUsed: 'gemini-3.8-flash',
+        modelUsed: 'Amazon Nova Pro (AWS Bedrock)',
         groundingSources: [
           { title: 'Saudi NCA Regulations Portal', url: 'https://nca.gov.sa' },
           { title: 'SDAIA National Data & AI Framework', url: 'https://sdaia.gov.sa' },
@@ -107,7 +112,6 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
   const [inputPrompt, setInputPrompt] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [selectedRole, setSelectedRole] = useState<string>(COMPLIANCE_ROLES[0].id);
-  const [selectedModel, setSelectedModel] = useState<'gemini-3.8-flash' | 'gemini-3.1-flash-lite'>('gemini-3.8-flash');
   const [enableSearchGrounding, setEnableSearchGrounding] = useState<boolean>(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -129,9 +133,9 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
   // Persist messages in localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('menat_gemini_chat_history', JSON.stringify(messages));
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
     } catch {
-      // quota or private browsing
+      // quota exceeded or private browsing
     }
   }, [messages]);
 
@@ -142,12 +146,12 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
     }
   }, [initialPrompt]);
 
-  // Send message to Gemini server endpoint
+  // Send message to AI server endpoint
   const handleSendMessage = async (textToSend?: string) => {
     const prompt = (textToSend || inputPrompt).trim();
     if (!prompt || isLoading) return;
 
-    const userMessage: GeminiChatMessage = {
+    const userMessage: AIChatMessage = {
       id: `msg-user-${Date.now()}`,
       role: 'user',
       content: prompt,
@@ -160,7 +164,7 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
     setIsLoading(true);
 
     try {
-      // Pass only last 8 messages to keep context concise and fast
+      // Pass only last 8 messages to keep context concise
       const apiMessages = newHistory.slice(-8).map((m) => ({
         role: m.role,
         content: m.content,
@@ -173,7 +177,6 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
           messages: apiMessages,
           role: selectedRole,
           enableSearch: enableSearchGrounding,
-          model: selectedModel,
         }),
       });
 
@@ -183,12 +186,12 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
         throw new Error(data.error || 'Server error while generating response');
       }
 
-      const assistantMessage: GeminiChatMessage = {
+      const assistantMessage: AIChatMessage = {
         id: `msg-ai-${Date.now()}`,
         role: 'assistant',
         content: data.text || 'No response returned from the model.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        modelUsed: data.model || selectedModel,
+        modelUsed: data.model || 'Amazon Nova Pro (AWS Bedrock)',
         groundingSources: data.groundingSources || [],
         searchQueries: data.searchQueries || [],
         rolePersona: selectedRole,
@@ -196,13 +199,13 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err: any) {
-      console.error('[Gemini Chat Error]', err);
-      const errorMessage: GeminiChatMessage = {
+      console.error('[AI Copilot Chat Error]', err);
+      const errorMessage: AIChatMessage = {
         id: `msg-err-${Date.now()}`,
         role: 'assistant',
-        content: `**Compliance Engine Alert**: Unable to connect with Gemini API. Error: ${
+        content: `**Compliance Engine Alert**: Unable to connect with the AI service. Error: ${
           err?.message || 'Network failure'
-        }.\n\nPlease ensure your \`GEMINI_API_KEY\` is configured in the AI Studio Settings > Secrets panel.`,
+        }.\n\nPlease ensure \`AWS_ACCESS_KEY_ID\`, \`AWS_SECRET_ACCESS_KEY\`, and \`AWS_REGION\` are configured in your \`.env\` file and that Bedrock model access is granted in your AWS account.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         error: err?.message,
       };
@@ -214,15 +217,16 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
 
   const handleClearHistory = () => {
     if (window.confirm('Clear your current regulatory chat history?')) {
-      const initial: GeminiChatMessage = {
+      const initial: AIChatMessage = {
         id: `welcome-msg-${Date.now()}`,
         role: 'assistant',
         content: 'Chat history cleared. How can I assist with your MENAT compliance obligations?',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        modelUsed: selectedModel,
+        modelUsed: 'Amazon Nova Pro (AWS Bedrock)',
       };
       setMessages([initial]);
-      localStorage.removeItem('menat_gemini_chat_history');
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+      localStorage.removeItem('menat_gemini_chat_history'); // clear legacy key too
     }
   };
 
@@ -236,7 +240,7 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
     const transcript = messages
       .map(
         (m) =>
-          `[${m.timestamp}] ${m.role === 'user' ? 'USER' : 'GEMINI COMPLIANCE COPILOT'}:\n${m.content}\n`
+          `[${m.timestamp}] ${m.role === 'user' ? 'USER' : 'COMPLIANCEIQ COPILOT'}:\n${m.content}\n`
       )
       .join('\n---\n\n');
 
@@ -266,11 +270,11 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
                   Compliance<span className="text-cyan-400">IQ</span> Copilot
                 </h2>
                 <span className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 rounded-full font-mono">
-                  Autonomous AI Model
+                  AWS Bedrock · Nova Pro
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Middle East, North Africa &amp; Türkiye Regulations &amp; Controls 
+                Middle East, North Africa &amp; Türkiye Regulations &amp; Controls
               </p>
             </div>
           </div>
@@ -299,7 +303,7 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
           </div>
         </div>
 
-        {/* Advisor Persona & Model Configuration Strip */}
+        {/* Advisor Persona & Web Search Configuration Strip */}
         <div className="px-4 py-2.5 bg-slate-950/40 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
           {/* Persona selector */}
           <div className="flex items-center gap-2">
@@ -317,25 +321,8 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
             </select>
           </div>
 
-          {/* Model & Search Grounding toggles */}
+          {/* Web Search toggle (Tavily) */}
           <div className="flex items-center gap-3">
-            {/* Model switch */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-400 font-medium">Model:</span>
-              <button
-                onClick={() =>
-                  setSelectedModel(
-                    selectedModel === 'gemini-3.8-flash' ? 'gemini-3.1-flash-lite' : 'gemini-3.8-flash'
-                  )
-                }
-                className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[11px] font-mono transition-colors"
-                title="Toggle between standard 3.8 Flash and fast 3.1 Flash Lite"
-              >
-                {selectedModel === 'gemini-3.8-flash' ? '3.8 Flash (Grounded)' : '3.1 Flash Lite (Fast)'}
-              </button>
-            </div>
-
-            {/* Google Search Grounding toggle */}
             <button
               onClick={() => setEnableSearchGrounding(!enableSearchGrounding)}
               className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
@@ -343,10 +330,10 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
                   ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
                   : 'bg-slate-800 text-slate-400 border-slate-700'
               }`}
-              title="Enable or disable Google Search grounding tool"
+              title="Enable or disable Tavily web search"
             >
               <Globe className="w-3 h-3" />
-              <span>Search Grounding: {enableSearchGrounding ? 'ON' : 'OFF'}</span>
+              <span>Web Search: {enableSearchGrounding ? 'ON' : 'OFF'}</span>
             </button>
           </div>
         </div>
@@ -405,12 +392,12 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
                   <Markdown>{msg.content}</Markdown>
                 </div>
 
-                {/* Grounding Web Sources & Queries (if available) */}
+                {/* Web Search Sources (if Tavily returned results) */}
                 {msg.groundingSources && msg.groundingSources.length > 0 && (
                   <div className="pt-2.5 mt-2 border-t border-slate-800/80 space-y-1.5">
                     <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400">
                       <Globe className="w-3 h-3 text-emerald-400" />
-                      <span>Google Search Grounding Sources Cited:</span>
+                      <span>Web Search Sources:</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {msg.groundingSources.map((source, idx) => (
@@ -447,10 +434,10 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
               <div className="bg-slate-950/80 border border-slate-800 rounded-2xl rounded-tl-none p-3.5 space-y-1">
                 <span className="font-semibold text-emerald-400 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                  Grounded Compliance Intelligence...
+                  Synthesizing Compliance Intelligence...
                 </span>
                 <p className="text-[11px] text-slate-500">
-                  Synthesizing MENAT statutory gazettes, controls mapping, and Google Search data.
+                  Querying AWS Bedrock (Amazon Nova Pro) with MENAT statutory controls and web search context.
                 </p>
               </div>
             </div>
@@ -519,8 +506,8 @@ I am your regulatory intelligence AI advisory assistant grounded in official MEN
           </form>
 
           <div className="flex items-center justify-between mt-2 text-[10px] text-slate-500">
-            <span>Grounding with Google Search & 24 MENAT Official Legal Registries</span>
-            <span className="font-mono">Role: {selectedRole}</span>
+            <span>AWS Bedrock · Amazon Nova Pro · 24 MENAT Official Legal Registries</span>
+            <span className="font-mono">Role: {selectedRole.split(' ').slice(0, 2).join(' ')}</span>
           </div>
         </div>
       </div>

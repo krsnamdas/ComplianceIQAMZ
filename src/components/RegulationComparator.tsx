@@ -107,7 +107,7 @@ export const RegulationComparator: React.FC<RegulationComparatorProps> = ({
     setAiMemo(null);
   };
 
-  // Trigger Gemini AI deep statutory synthesis
+  // Trigger AI deep statutory synthesis
   const handleGenerateAIMemo = async () => {
     if (!regulationA || !regulationB || !comparison) return;
     setIsAiLoading(true);

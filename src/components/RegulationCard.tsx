@@ -84,11 +84,11 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
     linkType: 'officialUrl',
   });
 
-  // Backend Gemini Requirement Confidence Analysis State
+  // Backend AI Requirement Confidence Analysis State
   const [aiAnalysis, setAiAnalysis] = useState<RegulationRequirementsAnalysis | null>(null);
   const [isLoadingConfidence, setIsLoadingConfidence] = useState(false);
 
-  // Fetch requirement confidence extracted and analyzed by the backend Gemini service
+  // Fetch requirement confidence extracted and analyzed by the backend AI service
   const fetchRequirementConfidence = async (force = false) => {
     try {
       setIsLoadingConfidence(true);
@@ -301,7 +301,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
               {regulation.status}
             </span>
 
-            {/* Compliance Requirement Confidence Visual Badge (Extracted & Analyzed by Gemini) */}
+            {/* Compliance Requirement Confidence Visual Badge (Extracted & Analyzed by AI) */}
             {(() => {
               const mandate = aiAnalysis?.overallMandate || analyzeRegulationMandate(regulation);
               const label = aiAnalysis?.overallMandate ? aiAnalysis.overallMandate.label : (mandate as any).type;
@@ -319,7 +319,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                       ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25'
                       : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/25'
                   }`}
-                  title="Click to inspect Gemini-analyzed Compliance Requirement Confidence breakdown"
+                  title="Click to inspect AI-analyzed Compliance Requirement Confidence breakdown"
                 >
                   <Scale className="w-3.5 h-3.5 shrink-0" />
                   <span className="text-[10px] uppercase font-semibold text-slate-400">

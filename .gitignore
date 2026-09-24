@@ -1,8 +1,7 @@
 node_modules/
-build/
+.env
 dist/
-coverage/
 .DS_Store
+bun.lock
 *.log
-.env*
-!.env.example
+.kiro/sessions/

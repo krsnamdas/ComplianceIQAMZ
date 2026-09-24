@@ -48,7 +48,7 @@ const FEATURE_METADATA_LIST: FeatureMetadata[] = [
     affectedViews: ['Navbar Radar Tab', 'RegulatoryRadar Component', 'Live Feeds'],
   },
   {
-    key: 'geminiCopilot',
+    key: 'aiCopilot',
     title: 'Autonomous AI Regulatory Copilot & Chatbot',
     description:
       'Provides conversational AI compliance advisory with live search grounding across 24 MENAT jurisdictions. When disabled, the AI Copilot chatbot drawer, floating quick-launch button, and navbar trigger are completely disabled and hidden across all pages including the admin console.',
@@ -386,7 +386,7 @@ export const FeatureTogglesTab: React.FC = () => {
                 </span>
               </div>
 
-              {meta.key === 'geminiCopilot' && (
+              {meta.key === 'aiCopilot' && (
                 <div className={`mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono ${isStagedEnabled ? 'text-emerald-400' : 'text-slate-500'}`}>
                   <span>Floating Widget &amp; Launcher:</span>
                   <span className="font-bold">

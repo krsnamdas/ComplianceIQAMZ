@@ -1,10 +1,11 @@
+import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import http from 'http';
 import https from 'https';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI, Type } from '@google/genai';
+import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { MENAT_COUNTRIES, MENAT_REGULATIONS, MOCK_REGULATORY_UPDATES, INITIAL_SCRAPER_LOGS } from './src/data/menatData.ts';
 import { INITIAL_SCRAPER_SOURCES } from './src/data/scraperSourcesData.ts';
 import { RegulatoryUpdate, ScraperLog, ScraperStatus, ControlDetail, ScrapedSource } from './src/types/regulatory.ts';
@@ -28,7 +29,7 @@ let isScrapingActive = false;
 // In-memory Server-Side Feature Flags (Enabled/Disabled from backend)
 let serverFeatureFlags: Record<string, boolean> = {
   regulatoryFeed: true,
-  geminiCopilot: true,
+  aiCopilot: true,
   maturityHeatmap: true,
   regulatoryRoadmap: true,
   regulatoryTimeline: true,
@@ -1161,182 +1162,248 @@ async function startServer() {
     });
   });
 
-  // Lazy-initialize Gemini AI Client
-  let geminiClient: GoogleGenAI | null = null;
-  function getGemini(): GoogleGenAI | null {
-    const key = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-    if (!key) return null;
-    if (!geminiClient) {
-      geminiClient = new GoogleGenAI({
-        apiKey: key,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
+  // ============================================================================
+  // AWS Bedrock AI Client
+  // ============================================================================
+  const BEDROCK_MODEL_ID =
+    process.env.BEDROCK_MODEL_ID || 'amazon.nova-pro-v1:0';
+
+  // Detect model family to build the correct request payload
+  const isNovaModel = (modelId: string) => modelId.startsWith('amazon.nova');
+  const isClaudeModel = (modelId: string) => modelId.startsWith('anthropic.claude');
+
+  function getBedrockClient(): BedrockRuntimeClient {
+    return new BedrockRuntimeClient({
+      region: process.env.AWS_REGION || 'us-east-1',
+      credentials:
+        process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+          ? {
+              accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+              secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+              ...(process.env.AWS_SESSION_TOKEN ? { sessionToken: process.env.AWS_SESSION_TOKEN } : {}),
+            }
+          : undefined, // Falls back to default credential provider chain (IAM role, ~/.aws/credentials, etc.)
+    });
+  }
+
+  /**
+   * Invoke a Bedrock model (Nova Pro or Claude) and return the text response.
+   * Automatically adapts the payload shape based on the model family.
+   * Handles throttling with one retry + backoff.
+   */
+  async function invokeClaudeOnBedrock(
+    systemPrompt: string,
+    userPrompt: string,
+    maxTokens = 4096
+  ): Promise<{ text: string; modelUsed: string }> {
+
+    // Build payload for the correct model family
+    let payload: object;
+    if (isNovaModel(BEDROCK_MODEL_ID)) {
+      // Amazon Nova: system goes in a separate top-level key, content is array of {text}
+      payload = {
+        system: [{ text: systemPrompt }],
+        messages: [{ role: 'user', content: [{ text: userPrompt }] }],
+        inferenceConfig: {
+          max_new_tokens: maxTokens,
+          temperature: 0.2,
         },
-      });
-    }
-    return geminiClient;
-  }
-
-  // Resilient execution wrapper for Gemini API calls with graceful 503/429 mitigation
-  async function generateContentWithFallback(
-    client: GoogleGenAI,
-    params: {
-      contents: any;
-      config?: any;
-      preferredModel?: string;
-    }
-  ): Promise<{ response: any; modelUsed: string }> {
-    const primaryModel = params.preferredModel || 'gemini-3.8-flash';
-    // Fallback chain: Primary -> Flash Lite (high throughput, resilient to capacity spikes) -> Flash Latest
-    const fallbackChain: string[] = [];
-    if (primaryModel === 'gemini-3.1-flash-lite') {
-      fallbackChain.push('gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest');
+      };
     } else {
-      fallbackChain.push('gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest');
+      // Anthropic Claude: anthropic_version required, system is a string
+      payload = {
+        anthropic_version: 'bedrock-2023-05-31',
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+        temperature: 0.2,
+      };
     }
 
-    let lastError: any = null;
-    for (let i = 0; i < fallbackChain.length; i++) {
-      const modelToUse = fallbackChain[i];
-      try {
-        const response = await client.models.generateContent({
-          model: modelToUse,
-          contents: params.contents,
-          config: params.config,
-        });
-        return { response, modelUsed: modelToUse };
-      } catch (err: any) {
-        lastError = err;
-        const errMsg = err?.message || String(err);
-        const isTransient =
-          err?.status === 503 ||
-          err?.status === 429 ||
-          errMsg.includes('503') ||
-          errMsg.includes('high demand') ||
-          errMsg.includes('UNAVAILABLE') ||
-          errMsg.includes('RESOURCE_EXHAUSTED');
+    const command = new InvokeModelCommand({
+      modelId: BEDROCK_MODEL_ID,
+      contentType: 'application/json',
+      accept: 'application/json',
+      body: JSON.stringify(payload),
+    });
 
-        if (isTransient && i < fallbackChain.length - 1) {
-          console.info(`[Gemini Resiliency] Model ${modelToUse} under high demand (${err?.status || 503}), switching to ${fallbackChain[i + 1]}...`);
-          await new Promise((resolve) => setTimeout(resolve, 350));
-          continue;
-        }
-
-        if (i === fallbackChain.length - 1) {
-          console.warn(`[Gemini Resiliency] All fallback models attempted. Last error: ${errMsg}`);
-        }
+    const attemptInvoke = async (): Promise<string> => {
+      const client = getBedrockClient();
+      const response = await client.send(command);
+      const body = JSON.parse(new TextDecoder().decode(response.body));
+      // Nova response: output.message.content[0].text
+      // Claude response: content[0].text
+      if (isNovaModel(BEDROCK_MODEL_ID)) {
+        return body?.output?.message?.content?.[0]?.text ?? '';
       }
+      return body?.content?.[0]?.text ?? '';
+    };
+
+    try {
+      const text = await attemptInvoke();
+      return { text, modelUsed: BEDROCK_MODEL_ID };
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      const isThrottle =
+        err?.name === 'ThrottlingException' ||
+        err?.$metadata?.httpStatusCode === 429 ||
+        errMsg.includes('throttl') ||
+        errMsg.includes('Too Many Requests');
+
+      if (isThrottle) {
+        console.info('[Bedrock Resiliency] ThrottlingException — retrying after 1s...');
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const text = await attemptInvoke();
+        return { text, modelUsed: BEDROCK_MODEL_ID };
+      }
+      throw err;
     }
-    throw lastError;
   }
 
-  // API 10: Multi-Turn Gemini Compliance Advisor Chat with Google Search Grounding
+  // ============================================================================
+  // Tavily Web Search Helper (replaces Google Search Grounding)
+  // Used for live news feed and search-grounded chat responses.
+  // Get a free key at https://tavily.com — set TAVILY_API_KEY in .env
+  // ============================================================================
+  interface TavilyResult {
+    title: string;
+    url: string;
+    content: string;
+    score: number;
+  }
+
+  async function tavilySearch(
+    query: string,
+    maxResults = 5
+  ): Promise<{ results: TavilyResult[]; queries: string[] }> {
+    const apiKey = process.env.TAVILY_API_KEY;
+    if (!apiKey) {
+      return { results: [], queries: [query] };
+    }
+
+    try {
+      const res = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: apiKey,
+          query,
+          search_depth: 'basic',
+          max_results: maxResults,
+          include_answer: false,
+        }),
+      });
+
+      if (!res.ok) {
+        console.warn(`[Tavily Search] HTTP ${res.status} for query: "${query}"`);
+        return { results: [], queries: [query] };
+      }
+
+      const data = await res.json();
+      const results: TavilyResult[] = (data.results || []).map((r: any) => ({
+        title: r.title || '',
+        url: r.url || '',
+        content: r.content || '',
+        score: r.score || 0,
+      }));
+
+      return { results, queries: [query] };
+    } catch (err: any) {
+      console.warn('[Tavily Search Error]', err?.message || err);
+      return { results: [], queries: [query] };
+    }
+  }
+
+  // API 10: Multi-Turn Compliance Advisor Chat (AWS Bedrock Claude + Tavily Web Search)
   app.post('/api/ai/chat', async (req: Request, res: Response) => {
     try {
       const {
         messages = [],
         role = 'Senior MENAT Regulatory Compliance Officer',
         enableSearch = true,
-        model = 'gemini-3.8-flash',
       } = req.body;
 
       if (!Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: 'messages array is required and must not be empty.' });
       }
 
-      const client = getGemini();
-
-      // System role persona configuration
-      const systemInstruction = `You are ComplianceIQ Copilot - the premier regulatory intelligence advisor for Middle East, North Africa & Türkiye Regulations & Controls specializing in cross-border tech regulation, data sovereignty, cybersecurity (NCA ECC, UAE NESA, Qatar NIA), AI ethics (Saudi SDAIA, UAE AI Office), and financial regulatory frameworks (SAMA, CBUAE, QCB, CBK).
+      const systemPrompt = `You are ComplianceIQ Copilot - the premier regulatory intelligence advisor for Middle East, North Africa & Türkiye Regulations & Controls specializing in cross-border tech regulation, data sovereignty, cybersecurity (NCA ECC, UAE NESA, Qatar NIA), AI ethics (Saudi SDAIA, UAE AI Office), and financial regulatory frameworks (SAMA, CBUAE, QCB, CBK).
 Role Persona: ${role}.
 Primary Objective: Provide rigorous, high-accuracy compliance advice, statutory citations, control mappings (NIST CSF 2.0, ISO/IEC 27001, CSA CCM v4), penalty risk assessments, and executive gap analyses for organizations operating across the 24 MENAT nations (Saudi Arabia, UAE, Qatar, Bahrain, Kuwait, Oman, Turkey, Egypt, Morocco, etc.).
 Formatting: Use clear, structured markdown with bullet points, bold key terms, cited statutory instrument numbers, and actionable compliance checklists. Always maintain objective, authoritative legal-technical rigor.`;
 
-      if (client) {
-        // Build conversation turns for Gemini
-        const contents = messages.map((m: { role: string; content: string }) => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.content }],
-        }));
+      // Build conversation history string for user prompt (last 8 messages)
+      const recentMessages = messages.slice(-8) as { role: string; content: string }[];
+      const historyText = recentMessages
+        .slice(0, -1)
+        .map((m) => `${m.role === 'user' ? 'USER' : 'ASSISTANT'}: ${m.content}`)
+        .join('\n\n');
+      const lastUserMessage = recentMessages[recentMessages.length - 1]?.content || '';
 
-        // Search grounding configuration
-        const tools = enableSearch ? [{ googleSearch: {} }] : [];
-        const preferredModel = model === 'gemini-3.1-flash-lite' ? 'gemini-3.1-flash-lite' : 'gemini-3.8-flash';
+      // Optionally enrich with Tavily web search results
+      let searchSources: { title: string; url: string }[] = [];
+      let searchQueries: string[] = [];
+      let searchContext = '';
 
-        try {
-          const { response: aiResponse, modelUsed } = await generateContentWithFallback(client, {
-            contents,
-            config: {
-              systemInstruction,
-              tools,
-            },
-            preferredModel,
-          });
-
-          const replyText = aiResponse.text || '';
-          const groundingChunks = aiResponse.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-          const webSearchQueries = aiResponse.candidates?.[0]?.groundingMetadata?.webSearchQueries || [];
-
-          const sources: { title: string; url: string }[] = [];
-          if (Array.isArray(groundingChunks)) {
-            for (const chunk of groundingChunks) {
-              if (chunk.web?.uri) {
-                sources.push({
-                  title: chunk.web.title || new URL(chunk.web.uri).hostname,
-                  url: chunk.web.uri,
-                });
-              }
-            }
-          }
-
-          return res.json({
-            text: replyText,
-            groundingSources: sources,
-            searchQueries: webSearchQueries,
-            model: modelUsed,
-            timestamp: new Date().toISOString(),
-          });
-        } catch (callErr: any) {
-          console.warn('[Gemini Chat Fallback Engaged]', callErr?.message || callErr);
-          // Seamlessly fall through to offline grounded response
+      if (enableSearch) {
+        const searchQuery = `MENAT regulatory compliance ${lastUserMessage.slice(0, 120)}`;
+        const { results, queries } = await tavilySearch(searchQuery, 4);
+        searchQueries = queries;
+        if (results.length > 0) {
+          searchSources = results.map((r) => ({ title: r.title, url: r.url }));
+          searchContext = `\n\n### Relevant Regulatory Sources (Web Search Results):\n${results
+            .map((r, i) => `[${i + 1}] ${r.title} (${r.url})\n${r.content.slice(0, 300)}`)
+            .join('\n\n')}\n\nUse these sources to ground your answer where relevant.\n\n`;
         }
       }
 
-      // Contextual fallback response if GEMINI_API_KEY is not configured or offline
-      const lastMessage = messages[messages.length - 1]?.content || '';
-      const fallbackAnalysis = `### ComplianceIQ Advisory Assessment (Offline Mode)
-**Middle East, North Africa & Türkiye Regulations & Controls **
+      const userPrompt = `${historyText ? `Conversation History:\n${historyText}\n\n` : ''}${searchContext}User Question: ${lastUserMessage}`;
 
-*Notice: Operating with internal statutory dataset. To activate real-time web search grounding and live Gemini analysis, configure your \`GEMINI_API_KEY\` in Settings > Secrets.*
+      try {
+        const { text: replyText, modelUsed } = await invokeClaudeOnBedrock(systemPrompt, userPrompt, 2048);
+        return res.json({
+          text: replyText,
+          groundingSources: searchSources,
+          searchQueries,
+          model: modelUsed,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (callErr: any) {
+        console.warn('[Bedrock Chat Fallback Engaged]', callErr?.message || callErr);
+        // Fall through to offline fallback
+      }
+
+      // Offline fallback when Bedrock is unconfigured or unreachable
+      const fallbackAnalysis = `### ComplianceIQ Advisory Assessment (Offline Mode)
+**Middle East, North Africa & Türkiye Regulations & Controls**
+
+*Notice: Operating with internal statutory dataset. To activate live AI analysis, configure \`AWS_ACCESS_KEY_ID\`, \`AWS_SECRET_ACCESS_KEY\`, and \`AWS_REGION\` in your \`.env\` file and ensure Bedrock model access is granted in your AWS account.*
 
 #### Contextual Inquiry Analysis:
-Regarding your query on: **"${lastMessage.slice(0, 100)}..."**
+Regarding your query on: **"${lastUserMessage.slice(0, 100)}..."**
 
 1. **Saudi Arabia (KSA) - SDAIA & NCA Baseline**:
-   - **AI Governance**: Under SDAIA's AI Ethics Principles and Generative AI Guidelines, organizations deploying machine learning algorithms must perform algorithmic bias risk assessments and maintain audit logs of training corpora.
-   - **Cybersecurity**: NCA ECC-1:2018 (Essential Cybersecurity Controls) mandates zero-trust architecture, multi-factor authentication for administrative channels, and local data residency (CST Class-C licensing).
-   - **Enforcement & Fines**: Up to SAR 5,000,000 for data privacy non-compliance under PDPL, with executive penal liability for illicit data disclosure.
+   - **AI Governance**: Under SDAIA's AI Ethics Principles, organizations must perform algorithmic bias risk assessments and maintain audit logs of training corpora.
+   - **Cybersecurity**: NCA ECC-1:2018 mandates zero-trust architecture, MFA for administrative channels, and local data residency (CST Class-C licensing).
+   - **Enforcement & Fines**: Up to SAR 5,000,000 for data privacy non-compliance under PDPL.
 
 2. **United Arab Emirates (UAE) - Cyber Security Council & AI Office**:
-   - **Dual Jurisdiction Model**: Onshore compliance overseen by DESC (Information Security Regulation ISR v2) and UAE Cyber Security Council, paired with specialized financial free-zone regimes (DIFC Data Protection Law No. 5/2020 and ADGM Data Protection Regulations 2021).
+   - **Dual Jurisdiction Model**: DESC (ISR v2) and UAE Cyber Security Council oversee onshore compliance, alongside DIFC/ADGM free-zone regimes.
    - **Penalties**: Up to AED 10,000,000 for systemic cybersecurity breaches or unauthorized data egress.
 
 3. **Key Statutory Action Items**:
-   - Establish a regional Data Protection and Regulatory Audit Charter.
    - Conduct crosswalk gap analysis mapping local requirements to ISO/IEC 27001:2022 and NIST CSF 2.0.
-   - Implement localized telemetry and incident response reporting protocols within statutory 2 to 4-hour SLA windows.`;
+   - Implement localized incident response reporting within statutory 2–4 hour SLA windows.`;
 
       return res.json({
         text: fallbackAnalysis,
         groundingSources: [
-          { title: 'Saudi National Cybersecurity Authority (NCA) Regulations', url: 'https://nca.gov.sa' },
-          { title: 'Saudi Data and AI Authority (SDAIA) AI Ethics', url: 'https://sdaia.gov.sa' },
-          { title: 'UAE Cyber Security Council Standards', url: 'https://csc.gov.ae' },
+          { title: 'Saudi National Cybersecurity Authority (NCA)', url: 'https://nca.gov.sa' },
+          { title: 'Saudi Data and AI Authority (SDAIA)', url: 'https://sdaia.gov.sa' },
+          { title: 'UAE Cyber Security Council', url: 'https://csc.gov.ae' },
         ],
-        searchQueries: ['MENAT cybersecurity regulations 2026', 'SDAIA AI ethics compliance requirements'],
-        model: 'gemini-3.8-flash (Simulated Offline Mode)',
+        searchQueries: ['MENAT cybersecurity regulations 2026'],
+        model: 'Amazon Nova Pro (Offline Mode)',
         timestamp: new Date().toISOString(),
       });
     } catch (err: any) {
@@ -1348,13 +1415,14 @@ Regarding your query on: **"${lastMessage.slice(0, 100)}..."**
     }
   });
 
-  // API 11: AI-Powered Sector Maturity & Gap Analysis Memo
+  // API 11: AI-Powered Sector Maturity & Gap Analysis Memo (AWS Bedrock)
   app.post('/api/ai/maturity-analysis', async (req: Request, res: Response) => {
     try {
       const { countryId = 'ksa', sectorId = 'ai', compareWith = ['uae', 'qatar'] } = req.body;
-      const client = getGemini();
 
-      const prompt = `Conduct a comprehensive, executive-level Regulatory Maturity & Gap Analysis memo for country code "${countryId}" in sector "${sectorId}", comparing its regulatory density and statutory enforcement against peer jurisdictions (${compareWith.join(', ')}).
+      const systemPrompt = `You are a Chief Regulatory Compliance Strategist for the Middle East, North Africa, and Turkey. Ground your response in real gazette standards and statutory requirements.`;
+
+      const userPrompt = `Conduct a comprehensive, executive-level Regulatory Maturity & Gap Analysis memo for country code "${countryId}" in sector "${sectorId}", comparing its regulatory density and statutory enforcement against peer jurisdictions (${compareWith.join(', ')}).
 Include:
 1. Executive Summary & Regulatory Density Score
 2. Enacted Statutory Instruments & Enforcing Authorities
@@ -1363,52 +1431,35 @@ Include:
 5. Strategic Harmonization & Remediation Roadmap (30-60-90 Day Action Plan)
 Use precise legal terminology and structure with clean Markdown.`;
 
-      if (client) {
-        try {
-          const { response: aiResponse, modelUsed } = await generateContentWithFallback(client, {
-            contents: prompt,
-            config: {
-              systemInstruction: 'You are a Chief Regulatory Compliance Strategist for the Middle East, North Africa, and Turkey. Ground your response in real gazette standards and statutory requirements.',
-              tools: [{ googleSearch: {} }],
-            },
-            preferredModel: 'gemini-3.8-flash',
-          });
-
-          const replyText = aiResponse.text || '';
-          const groundingChunks = aiResponse.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-          const sources = Array.isArray(groundingChunks)
-            ? groundingChunks.filter((c: any) => c.web?.uri).map((c: any) => ({ title: c.web?.title || c.web?.uri, url: c.web?.uri }))
-            : [];
-
-          return res.json({
-            analysis: replyText,
-            sources,
-            model: modelUsed,
-            timestamp: new Date().toISOString(),
-          });
-        } catch (callErr: any) {
-          console.warn('[Gemini Maturity Analysis Fallback Engaged]', callErr?.message || callErr);
-          // Fall through to offline fallback memo
-        }
+      try {
+        const { text: replyText, modelUsed } = await invokeClaudeOnBedrock(systemPrompt, userPrompt, 3000);
+        return res.json({
+          analysis: replyText,
+          sources: [],
+          model: modelUsed,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (callErr: any) {
+        console.warn('[Bedrock Maturity Analysis Fallback Engaged]', callErr?.message || callErr);
       }
 
-      // Fallback response if no API key or transiently unavailable
+      // Fallback response when Bedrock is unconfigured or unreachable
       const fallbackAnalysis = `### Strategic Regulatory Maturity Memo: ${countryId.toUpperCase()} (${sectorId.toUpperCase()})
 
 #### 1. Executive Summary & Density Benchmark
 ${countryId.toUpperCase()} demonstrates a Tier-1 regulatory posture in **${sectorId.toUpperCase()}**, with an estimated maturity index of **94/100**. The jurisdiction has shifted from high-level advisory circulars to binding statutory enforcement with mandatory third-party audit verification.
 
 #### 2. Comparative Benchmark vs. Regional Peers (${compareWith.map((c: string) => c.toUpperCase()).join(', ')})
-- **Statutory Authority**: Unlike fragmented multi-agency regimes, ${countryId.toUpperCase()} has consolidated oversight under centralized national authorities, ensuring standardized enforcement across critical infrastructure.
-- **Data Sovereignty & Localization**: Stringent in-country storage mandates apply to training datasets and citizen personal telemetry, whereas peer jurisdictions may allow transfer under adequacy bilateral agreements.
+- **Statutory Authority**: Consolidated oversight under centralized national authorities, ensuring standardized enforcement across critical infrastructure.
+- **Data Sovereignty & Localization**: Stringent in-country storage mandates apply to training datasets and citizen personal telemetry.
 
 #### 3. High-Priority Compliance Mandates
 - **Statutory Algorithmic Transparency**: Mandatory disclosure of automated decision logic and bias audits for public-facing deployments.
-- **Incident SLA Notification**: Severe security incidents must be reported to the national computer emergency response team within a strict statutory window.
+- **Incident SLA Notification**: Severe security incidents must be reported within a strict statutory window.
 
 #### 4. 90-Day Implementation Roadmap
 - **Days 1-30**: Execute baseline readiness assessment against national framework clauses.
-- **Days 31-60**: Remediate technical controls, specifically multi-factor zero trust and encrypted immutable backups.
+- **Days 31-60**: Remediate technical controls — MFA, zero-trust, and encrypted immutable backups.
 - **Days 61-90**: Undergo formal pre-audit assessment by an accredited independent cybersecurity auditing partner.`;
 
       return res.json({
@@ -1417,7 +1468,7 @@ ${countryId.toUpperCase()} demonstrates a Tier-1 regulatory posture in **${secto
           { title: 'National Regulatory Framework Portal', url: 'https://nca.gov.sa' },
           { title: 'Regional Standards Gazette', url: 'https://csc.gov.ae' },
         ],
-        model: 'gemini-3.8-flash (Simulated Offline Mode)',
+        model: 'Amazon Nova Pro (Offline Mode)',
         timestamp: new Date().toISOString(),
       });
     } catch (err: any) {
@@ -1543,7 +1594,7 @@ ${countryId.toUpperCase()} demonstrates a Tier-1 regulatory posture in **${secto
     };
   }
 
-  // API 12: Smart Insight Summary - Sector Impact Analysis Powered by Gemini
+  // API 12: Smart Insight Summary - Sector Impact Analysis (AWS Bedrock)
   app.post('/api/ai/smart-insight', async (req: Request, res: Response) => {
     try {
       const {
@@ -1561,79 +1612,46 @@ ${countryId.toUpperCase()} demonstrates a Tier-1 regulatory posture in **${secto
         return res.status(400).json({ error: 'sector and regulationCode are required fields.' });
       }
 
-      const client = getGemini();
-
-      const systemInstruction = `You are an elite MENAT Regulatory & Statutory Compliance Intelligence Advisor specializing in technology law, cybersecurity, data sovereignty, and industry governance across the 24 MENAT jurisdictions.
+      const systemPrompt = `You are an elite MENAT Regulatory & Statutory Compliance Intelligence Advisor specializing in technology law, cybersecurity, data sovereignty, and industry governance across the 24 MENAT jurisdictions.
 Your task: Evaluate the most significant regulatory impact of the specified regulation on the target business sector.
-Output Requirement: Provide EXACTLY 3 high-impact, actionable, and authoritative bullet points detailing the most significant regulatory impact.
-Each bullet point MUST:
-1. Focus on a distinct compliance pillar:
-   - Bullet 1: Core Operational & Technical Mandate (Specific system architecture, encryption, access controls, data residency, or technical measures required).
-   - Bullet 2: Statutory Enforcement, Penalties & Fiduciary Liability (Statutory fines, stop-processing orders, executive accountability, or license revocation exposures).
-   - Bullet 3: Strategic Compliance & Incident SLA Mandate (Audit readiness, 2-to-4 hour or 72-hour incident reporting SLAs, DPO/CISO appointment, or third-party validation).
-2. Begin with a concise, punchy bold title (4-7 words) followed by a 2-3 sentence authoritative breakdown.
-3. Be rigorously tailored to the chosen business sector (${sector}) within ${countryName || 'the MENAT region'} under ${authority || 'the regulator'}.
-Format strictly as a valid JSON object matching the provided schema.`;
+Output Requirement: Return EXACTLY a JSON object with:
+- "bullets": an array of exactly 3 objects, each with "title" (string, 4-7 words) and "impact" (string, 2-3 sentences).
+  - Bullet 1: Core Operational & Technical Mandate
+  - Bullet 2: Statutory Enforcement, Penalties & Fiduciary Liability
+  - Bullet 3: Strategic Compliance & Incident SLA Mandate
+- "executiveSummary": a 1-2 sentence string summary.
+Respond ONLY with valid JSON, no markdown fences.`;
 
-      const prompt = `Regulation Code: ${regulationCode}
+      const userPrompt = `Regulation Code: ${regulationCode}
 Regulation Name: ${regulationName}
 Jurisdiction: ${countryName || 'MENAT'}
 Enforcing Authority: ${authority}
 Category: ${category}
 Scope Summary: ${scopeSummary}
 Target Business Sector: ${sector}
-Granular Sample Controls: ${Array.isArray(sampleControls) ? sampleControls.map((c: any) => `${c.code}: ${c.title} (${c.clauseReference || ''})`).join('; ') : 'N/A'}
+Sample Controls: ${Array.isArray(sampleControls) ? sampleControls.map((c: any) => `${c.code}: ${c.title}`).join('; ') : 'N/A'}
 
-Analyze the exact regulatory impact of this framework on the "${sector}" business sector. Return exactly 3 structured bullet points in JSON.`;
+Analyze the exact regulatory impact on the "${sector}" sector. Return ONLY the JSON object.`;
 
-      if (client) {
-        try {
-          const { response: aiResponse, modelUsed } = await generateContentWithFallback(client, {
-            contents: prompt,
-            config: {
-              systemInstruction,
-              responseMimeType: 'application/json',
-              responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                  bullets: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        title: { type: Type.STRING },
-                        impact: { type: Type.STRING },
-                      },
-                      required: ['title', 'impact'],
-                    },
-                  },
-                  executiveSummary: { type: Type.STRING },
-                },
-                required: ['bullets', 'executiveSummary'],
-              },
-            },
-            preferredModel: 'gemini-3.8-flash',
+      try {
+        const { text: rawText, modelUsed } = await invokeClaudeOnBedrock(systemPrompt, userPrompt, 2048);
+        const parsed = parseJSONFromText(rawText);
+        if (parsed && Array.isArray(parsed.bullets) && parsed.bullets.length >= 3) {
+          return res.json({
+            sector,
+            regulationCode,
+            bullets: parsed.bullets.slice(0, 3),
+            executiveSummary: parsed.executiveSummary || `Regulatory impact for ${sector} under ${regulationCode}.`,
+            model: modelUsed,
+            timestamp: new Date().toISOString(),
+            isLiveAI: true,
           });
-
-          const rawText = aiResponse.text || '{}';
-          const parsed = JSON.parse(rawText);
-          if (Array.isArray(parsed.bullets) && parsed.bullets.length >= 3) {
-            return res.json({
-              sector,
-              regulationCode,
-              bullets: parsed.bullets.slice(0, 3),
-              executiveSummary: parsed.executiveSummary || `Crucial regulatory impact assessment for ${sector} under ${regulationCode}.`,
-              model: modelUsed,
-              timestamp: new Date().toISOString(),
-              isLiveAI: true,
-            });
-          }
-        } catch (callErr: any) {
-          console.info('[Smart Insight Live AI Unavailable, using statutory fallback engine]', callErr?.message || callErr);
         }
+      } catch (callErr: any) {
+        console.info('[Smart Insight Live AI Unavailable, using statutory fallback engine]', callErr?.message || callErr);
       }
 
-      // High-Fidelity Fallback when API key is unconfigured or rate limited
+      // High-Fidelity Fallback
       const fallback = generateDynamicFallbackInsights(
         regulationCode,
         regulationName,
@@ -1648,7 +1666,7 @@ Analyze the exact regulatory impact of this framework on the "${sector}" busines
         regulationCode,
         bullets: fallback.bullets,
         executiveSummary: fallback.summary,
-        model: 'gemini-3.8-flash (Offline Statutory Engine)',
+        model: 'Amazon Nova Pro (Offline Statutory Engine)',
         timestamp: new Date().toISOString(),
         isLiveAI: false,
       });
@@ -1667,7 +1685,7 @@ Analyze the exact regulatory impact of this framework on the "${sector}" busines
         regulationCode: req.body.regulationCode || 'REG',
         bullets: fallback.bullets,
         executiveSummary: fallback.summary,
-        model: 'gemini-3.8-flash (Fallback Mode)',
+        model: 'Amazon Nova Pro (Fallback Mode)',
         timestamp: new Date().toISOString(),
         isLiveAI: false,
       });
@@ -1769,7 +1787,7 @@ Analyze the exact regulatory impact of this framework on the "${sector}" busines
       regulationCode,
       overallMandate,
       requirements,
-      modelUsed: 'gemini-3.8-flash (Offline Statutory Jurisprudence Engine)',
+      modelUsed: 'Amazon Nova Pro (Offline Statutory Jurisprudence Engine)',
       timestamp: new Date().toISOString(),
       isLiveGemini: false,
     };
@@ -1778,7 +1796,7 @@ Analyze the exact regulatory impact of this framework on the "${sector}" busines
   // Cache of requirement confidence analyses
   const requirementsAnalysisCache = new Map<string, any>();
 
-  // API 12.5: Compliance Requirement Confidence Analysis powered by Gemini
+  // API 12.5: Compliance Requirement Confidence Analysis (AWS Bedrock)
   app.post('/api/ai/analyze-requirements', async (req: Request, res: Response) => {
     try {
       const {
@@ -1801,7 +1819,6 @@ Analyze the exact regulatory impact of this framework on the "${sector}" busines
         return res.json(requirementsAnalysisCache.get(regId));
       }
 
-      // Find the regulation from database if requirements not directly passed
       const targetReg = MENAT_REGULATIONS.find(
         (r) => r.id === regId || r.code.toLowerCase() === String(regId).toLowerCase()
       );
@@ -1818,37 +1835,40 @@ Analyze the exact regulatory impact of this framework on the "${sector}" busines
       const cName = countryName || targetReg?.countryId || 'MENAT';
       const scope = scopeSummary || targetReg?.scopeSummary || '';
 
-      const client = getGemini();
-
-      if (client && rawReqs.length > 0) {
+      if (rawReqs.length > 0) {
         try {
-          const systemInstruction = `You are an elite Statutory Jurist and Regulatory Compliance Intelligence Engine specializing in MENAT regulatory frameworks.
-Your task: Analyze each compliance requirement/control in the provided regulation to determine whether it is:
-1. "Mandatory" (legally binding obligation with statutory enforcement or penal liability, typically characterized by "shall", "must", "strictly required", "prohibited", or sovereign decrees).
-2. "Guideline" (advisory recommendation, best practice, or guidance, characterized by "should", "recommended", "encouraged", or voluntary adoption).
-3. "Conditional" (mandatory contingent upon specific conditions, such as processing sensitive citizen telemetry, operating critical infrastructure, or crossing sectoral revenue/user thresholds).
+          const systemPrompt = `You are an elite Statutory Jurist and Regulatory Compliance Intelligence Engine specializing in MENAT regulatory frameworks.
+Analyze each compliance requirement/control and classify it as "Mandatory", "Guideline", or "Conditional".
+Return ONLY valid JSON with this exact structure:
+{
+  "overallMandate": {
+    "label": "Mandatory" | "Guideline" | "Conditional Mandate",
+    "confidenceScore": <integer 50-99>,
+    "confidenceInterval": "<string e.g. '94% - 99%'>",
+    "rationale": "<1-2 sentence statutory rationale>"
+  },
+  "requirements": [
+    {
+      "id": "<string>",
+      "code": "<string>",
+      "label": "Mandatory" | "Guideline" | "Conditional",
+      "confidenceScore": <integer 50-99>,
+      "confidenceInterval": "<string>",
+      "rationale": "<1-2 sentence rationale>",
+      "statutoryKeyword": "<key verb e.g. 'shall implement'>",
+      "enforcementType": "<e.g. 'Primary Statutory Obligation'>"
+    }
+  ]
+}
+No markdown fences. Respond with valid JSON only.`;
 
-For each requirement, extract and provide:
-- "label": "Mandatory" | "Guideline" | "Conditional"
-- "confidenceScore": Integer between 50 and 99 (e.g. 96 for 96% confidence).
-- "confidenceInterval": String representation of the statistical confidence interval (e.g. "93% - 98%").
-- "rationale": 1-2 sentence authoritative statutory rationale explaining why it is Mandatory vs. Guideline, citing legal imperative terms and supervisory consequences.
-- "statutoryKeyword": Key verb or legal trigger phrase (e.g. "shall implement", "must notify within 72h", "recommended advisory", "conditional on critical asset status").
-- "enforcementType": e.g. "Primary Statutory Obligation", "Administrative Supervisory Guideline", or "Conditional Threshold Mandate".
-
-Also provide an "overallMandate" for the regulation:
-- "label": "Mandatory" | "Guideline" | "Conditional Mandate"
-- "confidenceScore": Integer (e.g. 97)
-- "confidenceInterval": String (e.g. "94% - 99%")
-- "rationale": Summary of the instrument's sovereign backing (e.g. Royal Decree, Parliamentary Act, Central Bank Circular).`;
-
-          const prompt = `Regulation Code: ${regCode}
+          const userPrompt = `Regulation Code: ${regCode}
 Regulation Name: ${regName}
 Enforcing Authority: ${auth}
 Jurisdiction: ${cName}
 Scope Summary: ${scope}
 
-Requirements / Controls to Analyze:
+Requirements to Analyze:
 ${rawReqs
   .map(
     (r: any, idx: number) => `Requirement ${idx + 1}:
@@ -1858,54 +1878,10 @@ Title: ${r.title || 'Regulatory Requirement'}
 Description: ${r.description || ''}
 Clause Reference: ${r.clauseReference || 'General Clause'}`
   )
-  .join('\n\n')}
+  .join('\n\n')}`;
 
-Perform legal confidence analysis on each requirement and the overall regulation. Return strictly valid JSON.`;
-
-          const { response: aiResponse, modelUsed } = await generateContentWithFallback(client, {
-            contents: prompt,
-            config: {
-              systemInstruction,
-              responseMimeType: 'application/json',
-              responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                  overallMandate: {
-                    type: Type.OBJECT,
-                    properties: {
-                      label: { type: Type.STRING },
-                      confidenceScore: { type: Type.INTEGER },
-                      confidenceInterval: { type: Type.STRING },
-                      rationale: { type: Type.STRING },
-                    },
-                    required: ['label', 'confidenceScore', 'confidenceInterval', 'rationale'],
-                  },
-                  requirements: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        id: { type: Type.STRING },
-                        code: { type: Type.STRING },
-                        label: { type: Type.STRING },
-                        confidenceScore: { type: Type.INTEGER },
-                        confidenceInterval: { type: Type.STRING },
-                        rationale: { type: Type.STRING },
-                        statutoryKeyword: { type: Type.STRING },
-                        enforcementType: { type: Type.STRING },
-                      },
-                      required: ['id', 'code', 'label', 'confidenceScore', 'confidenceInterval', 'rationale'],
-                    },
-                  },
-                },
-                required: ['overallMandate', 'requirements'],
-              },
-            },
-            preferredModel: 'gemini-3.8-flash',
-          });
-
-          const rawText = aiResponse.text || '{}';
-          const parsed = JSON.parse(rawText);
+          const { text: rawText, modelUsed } = await invokeClaudeOnBedrock(systemPrompt, userPrompt, 4096);
+          const parsed = parseJSONFromText(rawText);
 
           if (parsed && parsed.overallMandate && Array.isArray(parsed.requirements)) {
             const enriched = {
@@ -1914,17 +1890,17 @@ Perform legal confidence analysis on each requirement and the overall regulation
               overallMandate: parsed.overallMandate,
               requirements: parsed.requirements.map((r: any) => ({
                 ...r,
-                isGeminiExtracted: true,
+                isGeminiExtracted: false,
               })),
               modelUsed,
               timestamp: new Date().toISOString(),
-              isLiveGemini: true,
+              isLiveGemini: false,
             };
             requirementsAnalysisCache.set(regId, enriched);
             return res.json(enriched);
           }
-        } catch (geminiErr: any) {
-          console.warn('[Gemini Requirement Analysis Fallback Engaged]', geminiErr?.message || geminiErr);
+        } catch (bedrockErr: any) {
+          console.warn('[Bedrock Requirement Analysis Fallback Engaged]', bedrockErr?.message || bedrockErr);
         }
       }
 
@@ -1998,7 +1974,7 @@ Perform legal confidence analysis on each requirement and the overall regulation
     }
   }
 
-  // API 13: Live MENAT Regulatory News Feed via Google Search Grounding
+  // API 13: Live MENAT Regulatory News Feed via Tavily Web Search (replaces Google Search Grounding)
   const handleGetGroundedNews = async (req: Request, res: Response) => {
     try {
       const category = (req.query.category as string) || (req.body?.category as string) || 'all';
@@ -2007,103 +1983,70 @@ Perform legal confidence analysis on each requirement and the overall regulation
       const forceRefresh = req.body?.forceRefresh === true || req.query.refresh === 'true';
 
       let isLive = false;
-      const client = getGemini();
 
-      // Only invoke live Google Search Grounding if forceRefresh or custom query is supplied
-      if (client && (forceRefresh || query)) {
+      // Invoke live Tavily search + Claude synthesis if forceRefresh or a custom query was provided
+      if (forceRefresh || query) {
         try {
-          const promptText = `You are an elite MENAT Regulatory & Statutory Compliance Intelligence Researcher.
-Search the live web for the latest real-time regulatory compliance news, cybersecurity mandates, data privacy decrees, AI governance policies, and fintech developments across MENAT jurisdictions (specifically Saudi Arabia, United Arab Emirates, Qatar, Oman, Bahrain, Turkey, Egypt).
-${query ? `Specific Target Query: ${query}` : 'Find the most impactful updates from official gazettes and statutory authorities.'}
+          const searchQuery = query
+            ? `MENAT regulatory compliance ${query}`
+            : `MENAT cybersecurity data privacy AI governance regulatory updates ${new Date().getFullYear()}`;
 
-Return a JSON array of 4 to 8 recent regulatory news items.
-Format strictly as a JSON array of objects with the following keys:
-- title: string (clear, authoritative regulatory news headline)
-- summary: string (2-3 sentence breakdown of the regulatory development and legal obligation)
-- jurisdiction: string (e.g. 'Saudi Arabia', 'United Arab Emirates', 'Qatar', 'Oman', 'Bahrain', 'Turkey', 'Egypt')
-- countryCode: string (2-letter lowercase code e.g. 'sa', 'ae', 'qa', 'om', 'bh', 'tr', 'eg')
-- authority: string (the statutory regulator e.g. 'SDAIA', 'NCA', 'CBUAE', 'DESC', 'QCB', 'BTK', 'CBB', 'TRA')
-- category: string (one of 'Cybersecurity', 'AI Governance', 'Data Privacy & Cloud', 'FinTech & Banking', 'Critical Infrastructure', 'Telecom & Cross-Border')
-- impactLevel: string ('High', 'Medium', or 'Advisory')
-- sentiment: string (one of 'Impactful', 'Neutral', 'Consultation Phase')
-- sentimentRationale: string (one sentence explanation)
-- timeAgo: string (e.g. 'Today', 'Yesterday', '3 hours ago', '2 days ago')
-- sourceName: string (news agency, gazette, or portal name)
-- sourceUrl: string (official web URL or reliable source link)
-- tags: array of 3-4 strings
-- keyObligations: array of 2-3 specific compliance obligations
-- affectedSectors: array of 2-3 target business sectors
+          const { results, queries } = await tavilySearch(searchQuery, 6);
+          lastGroundedQueries = queries;
 
-Return ONLY the JSON array enclosed in a \`\`\`json ... \`\`\` code block.`;
+          if (results.length > 0) {
+            lastGroundedCitations = results.map((r) => ({ title: r.title, url: r.url }));
 
-          const { response: aiResponse } = await generateContentWithFallback(client, {
-            contents: promptText,
-            config: {
-              tools: [{ googleSearch: {} }],
-            },
-            preferredModel: 'gemini-3.8-flash',
-          });
+            const searchContext = results
+              .map((r, i) => `[${i + 1}] ${r.title} (${r.url})\n${r.content.slice(0, 400)}`)
+              .join('\n\n');
 
-          const candidate = aiResponse.candidates?.[0];
-          const groundingMeta = candidate?.groundingMetadata;
+            const systemPrompt = `You are an elite MENAT Regulatory & Statutory Compliance Intelligence Researcher. Based only on the provided search results, extract and structure regulatory news items.
+Return ONLY a JSON array enclosed in \`\`\`json ... \`\`\` of 4-8 objects with these keys:
+title, summary (2-3 sentences), jurisdiction, countryCode (2-letter lowercase), authority, category (one of: Cybersecurity | AI Governance | Data Privacy & Cloud | FinTech & Banking | Critical Infrastructure | Telecom & Cross-Border), impactLevel (High|Medium|Advisory), sentiment (Impactful|Neutral|Consultation Phase), sentimentRationale, timeAgo, sourceName, sourceUrl, tags (array of 3-4 strings), keyObligations (array of 2-3 strings), affectedSectors (array of 2-3 strings).`;
 
-          if (groundingMeta?.webSearchQueries?.length) {
-            lastGroundedQueries = groundingMeta.webSearchQueries;
-          }
+            const userPrompt = `Search Results:\n${searchContext}\n\n${query ? `Focus on: ${query}` : 'Extract the most impactful MENAT regulatory developments.'}`;
 
-          if (groundingMeta?.groundingChunks?.length) {
-            const citations = groundingMeta.groundingChunks
-              .filter((chunk: any) => chunk.web?.uri)
-              .map((chunk: any) => ({
-                title: chunk.web?.title || 'Regulatory Source',
-                url: chunk.web?.uri || '#',
-              }))
-              .slice(0, 8);
-            if (citations.length > 0) {
-              lastGroundedCitations = citations;
-            }
-          }
+            const { text: rawText } = await invokeClaudeOnBedrock(systemPrompt, userPrompt, 3000);
+            const parsed = parseJSONFromText(rawText);
 
-          const rawText = aiResponse.text || '';
-          const parsed = parseJSONFromText(rawText);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const newItems: GroundedNewsItem[] = parsed.map((item: any, idx: number) => {
+                const cCode = (item.countryCode || 'sa').toLowerCase();
+                return {
+                  id: `grounded-${Date.now()}-${idx}`,
+                  title: item.title || 'Regulatory Notification',
+                  summary: item.summary || 'Statutory update published across regional gazette.',
+                  jurisdiction: item.jurisdiction || 'MENAT',
+                  countryCode: cCode,
+                  countryFlag: COUNTRY_FLAG_MAP[cCode] || '🌐',
+                  authority: item.authority || 'Competent Authority',
+                  category: (item.category as any) || 'Cybersecurity',
+                  impactLevel: (item.impactLevel as any) || 'Medium',
+                  sentiment: (['Impactful', 'Neutral', 'Consultation Phase'].includes(item.sentiment)
+                    ? item.sentiment
+                    : 'Impactful') as 'Impactful' | 'Neutral' | 'Consultation Phase',
+                  sentimentRationale: item.sentimentRationale || 'Regulatory notice establishing compliance obligations.',
+                  publishedAt: new Date().toISOString(),
+                  timeAgo: item.timeAgo || 'Recent',
+                  sourceName: item.sourceName || 'Official Regulatory Gazette',
+                  sourceUrl: item.sourceUrl || (lastGroundedCitations[0]?.url || 'https://nca.gov.sa'),
+                  searchGroundingQuery: lastGroundedQueries[0] || query || 'MENAT regulatory updates',
+                  tags: Array.isArray(item.tags) ? item.tags : ['RegulatoryCompliance', 'MENAT'],
+                  keyObligations: Array.isArray(item.keyObligations) ? item.keyObligations : ['Review statutory notice requirements'],
+                  affectedSectors: Array.isArray(item.affectedSectors) ? item.affectedSectors : ['Cross-Sector Enterprise'],
+                };
+              });
 
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const newItems: GroundedNewsItem[] = parsed.map((item: any, idx: number) => {
-              const cCode = (item.countryCode || 'sa').toLowerCase();
-              return {
-                id: `grounded-${Date.now()}-${idx}`,
-                title: item.title || 'Regulatory Notification',
-                summary: item.summary || 'Statutory update published across regional gazette.',
-                jurisdiction: item.jurisdiction || 'MENAT',
-                countryCode: cCode,
-                countryFlag: COUNTRY_FLAG_MAP[cCode] || '🌐',
-                authority: item.authority || 'Competent Authority',
-                category: (item.category as any) || 'Cybersecurity',
-                impactLevel: (item.impactLevel as any) || 'Medium',
-                sentiment: (['Impactful', 'Neutral', 'Consultation Phase'].includes(item.sentiment)
-                  ? item.sentiment
-                  : 'Impactful') as 'Impactful' | 'Neutral' | 'Consultation Phase',
-                sentimentRationale: item.sentimentRationale || 'Regulatory notice establishing compliance obligations.',
-                publishedAt: new Date().toISOString(),
-                timeAgo: item.timeAgo || 'Recent',
-                sourceName: item.sourceName || 'Official Regulatory Gazette',
-                sourceUrl: item.sourceUrl || (lastGroundedCitations[0]?.url || 'https://nca.gov.sa'),
-                searchGroundingQuery: lastGroundedQueries[0] || query || 'MENAT regulatory updates',
-                tags: Array.isArray(item.tags) ? item.tags : ['RegulatoryCompliance', 'MENAT'],
-                keyObligations: Array.isArray(item.keyObligations) ? item.keyObligations : ['Review statutory notice requirements'],
-                affectedSectors: Array.isArray(item.affectedSectors) ? item.affectedSectors : ['Cross-Sector Enterprise'],
-              };
-            });
-
-            // Merge into cache avoiding duplicate titles
-            const existingTitles = new Set(cachedGroundedNews.map((n) => n.title.toLowerCase()));
-            const filteredNew = newItems.filter((n) => !existingTitles.has(n.title.toLowerCase()));
-            cachedGroundedNews = [...filteredNew, ...cachedGroundedNews];
-            lastGroundedFetchTime = new Date().toISOString();
-            isLive = true;
-          }
+              const existingTitles = new Set(cachedGroundedNews.map((n) => n.title.toLowerCase()));
+              const filteredNew = newItems.filter((n) => !existingTitles.has(n.title.toLowerCase()));
+              cachedGroundedNews = [...filteredNew, ...cachedGroundedNews];
+              lastGroundedFetchTime = new Date().toISOString();
+              isLive = true;
+            } // end if Array.isArray(parsed)
+          } // end if results.length > 0
         } catch (newsErr: any) {
-          console.info('[Live Grounded News Fallback Engaged]', newsErr?.message || newsErr);
+          console.info('[Live Tavily News Fallback Engaged]', newsErr?.message || newsErr);
         }
       }
 
@@ -2168,7 +2111,7 @@ Return ONLY the JSON array enclosed in a \`\`\`json ... \`\`\` code block.`;
         return res.status(400).json({ error: 'controlText is required to interpret control requirements.' });
       }
 
-      // Generate deterministic structured interpretation with full grounded alignments
+      // 1. Generate deterministic structured interpretation (always runs)
       const result = interpretControlSemantics({
         controlText,
         controlId,
@@ -2177,11 +2120,9 @@ Return ONLY the JSON array enclosed in a \`\`\`json ... \`\`\` code block.`;
         cloudModelTarget,
       });
 
-      // Try calling Gemini if client is available to enhance with bespoke nuances
-      const client = getGemini();
-      if (client) {
-        try {
-          const prompt = `You are a Principal Cloud Security and Regulatory Compliance Architect specializing in international and MENAT standards.
+      // 2. Enhance with Claude on Bedrock if available
+      try {
+        const prompt = `You are a Principal Cloud Security and Regulatory Compliance Architect specializing in international and MENAT standards.
 Analyze the following regulatory control or sub-control requirement:
 ---
 Control Text: "${controlText}"
@@ -2190,90 +2131,55 @@ Regulation: "${regulationName || 'N/A'}"
 Jurisdiction: "${jurisdiction || 'Global/MENAT'}"
 Cloud Model Target: "${cloudModelTarget || 'All'}"
 ---
-Provide an expert interpretation. Ensure you identify:
+Provide an expert interpretation identifying:
 1. In simple terms: summary, core requirement, why it matters, risk if not compliant.
-2. Specific controls to check for:
-   - People controls (roles, training, certifications)
-   - Process controls (policies, approvals, review cadence, governance artifacts)
-   - Technical controls (tooling, technical safeguards, configurations)
-3. Alignments to:
-   - NIST 800-53 Rev 5 (e.g. AC-2, SC-12, AU-9)
-   - NIST CSF v2.0 (e.g. PR.AA-01, PR.DS-01, GV.OC-01)
-   - NIST AI RMF (if applicable)
-   - ISO 27001:2022 (e.g. A.5.15, A.8.24)
-   - CIS Controls v8.1 (safeguards, IG1/IG2/IG3)
-   - CSA Cloud Controls Matrix (CCM v4.1) domain, control ID, SSRM ownership (CSP-Owned, CSC-Owned, Shared Independent/Dependent), and continuous audit metric.
-4. Auditor checklist (what an auditor asks for to prove compliance).
+2. Controls to check (People, Process, Technical).
+3. Alignments: NIST 800-53 Rev 5, NIST CSF v2.0, ISO 27001:2022, CIS Controls v8.1, CSA CCM v4.1 (with SSRM ownership and continuous audit metric).
+4. Auditor checklist.
 
-Return ONLY valid JSON matching this schema:
+Return ONLY valid JSON matching this schema exactly:
 {
-  "inSimpleTerms": {
-    "summary": "string",
-    "coreRequirement": "string",
-    "whyItMatters": "string",
-    "riskIfNotCompliant": "string"
-  },
+  "inSimpleTerms": { "summary": "string", "coreRequirement": "string", "whyItMatters": "string", "riskIfNotCompliant": "string" },
   "controlsToCheck": {
-    "people": [
-      { "id": "PPL-01", "title": "string", "description": "string", "whatToCheck": "string", "keyRoles": ["string"], "competencyOrTraining": "string" }
-    ],
-    "process": [
-      { "id": "PRC-01", "title": "string", "description": "string", "whatToCheck": "string", "reviewCadence": "string", "governanceArtifacts": ["string"] }
-    ],
-    "technical": [
-      { "id": "TECH-01", "title": "string", "description": "string", "whatToCheck": "string", "toolingCategories": ["string"], "technicalSafeguards": ["string"] }
-    ]
+    "people": [ { "id": "PPL-01", "title": "string", "description": "string", "whatToCheck": "string", "keyRoles": ["string"], "competencyOrTraining": "string" } ],
+    "process": [ { "id": "PRC-01", "title": "string", "description": "string", "whatToCheck": "string", "reviewCadence": "string", "governanceArtifacts": ["string"] } ],
+    "technical": [ { "id": "TECH-01", "title": "string", "description": "string", "whatToCheck": "string", "toolingCategories": ["string"], "technicalSafeguards": ["string"] } ]
   },
   "technicalAlignments": {
     "nist800_53": [ { "controlId": "string", "controlName": "string", "family": "string", "description": "string", "relevance": "string" } ],
     "nistCsfV2": [ { "subcategoryId": "string", "functionName": "string", "category": "string", "description": "string" } ],
     "iso27001_2022": [ { "clauseId": "string", "title": "string", "category": "string", "description": "string" } ],
     "cisControlsV8": [ { "controlNumber": 1, "controlTitle": "string", "safeguardId": "string", "safeguardTitle": "string", "assetType": "string", "implementationGroup": "IG1", "description": "string" } ],
-    "csaCcmV4": {
-      "controlId": "string",
-      "controlTitle": "string",
-      "domainId": "string",
-      "domainName": "string",
-      "controlSpecification": "string",
-      "ssrmOwnership": { "iaas": "string", "paas": "string", "saas": "string" },
-      "ownershipRationale": "string",
-      "continuousAuditMetric": { "metricId": "string", "description": "string", "expression": "string", "sloRecommendation": "string" }
-    }
+    "csaCcmV4": { "controlId": "string", "controlTitle": "string", "domainId": "string", "domainName": "string", "controlSpecification": "string", "ssrmOwnership": { "iaas": "string", "paas": "string", "saas": "string" }, "ownershipRationale": "string", "continuousAuditMetric": { "metricId": "string", "description": "string", "expression": "string", "sloRecommendation": "string" } }
   },
-  "auditorChecklist": [
-    { "checkId": "AUD-01", "domain": "string", "auditQuestion": "string", "requiredEvidence": "string", "testMethod": "Inspection", "severityIfMissing": "Critical" }
-  ]
+  "auditorChecklist": [ { "checkId": "AUD-01", "domain": "string", "auditQuestion": "string", "requiredEvidence": "string", "testMethod": "Inspection", "severityIfMissing": "Critical" } ]
 }`;
 
-          const { response: aiResponse } = await generateContentWithFallback(client, {
-            contents: prompt,
-            config: {
-              responseMimeType: 'application/json',
-            },
-            preferredModel: 'gemini-3.8-flash',
-          });
+        const { text: textResponse, modelUsed } = await invokeClaudeOnBedrock(
+          'You are a principal regulatory compliance architect. Return only valid JSON, no markdown fences.',
+          prompt,
+          4096
+        );
 
-          const textResponse = aiResponse.text;
-          if (textResponse) {
-            const parsed = parseJSONFromText(textResponse);
-            if (parsed && parsed.inSimpleTerms && parsed.controlsToCheck) {
-              result.inSimpleTerms = parsed.inSimpleTerms;
-              result.controlsToCheck = parsed.controlsToCheck;
-              if (parsed.technicalAlignments) {
-                result.technicalAlignments = {
-                  ...result.technicalAlignments,
-                  ...parsed.technicalAlignments,
-                };
-              }
-              if (parsed.auditorChecklist) {
-                result.auditorChecklist = parsed.auditorChecklist;
-              }
-              result.modelUsed = 'Gemini 3.8 Flash + CSA CCM v4.1 Expert Grounding';
+        if (textResponse) {
+          const parsed = parseJSONFromText(textResponse);
+          if (parsed && parsed.inSimpleTerms && parsed.controlsToCheck) {
+            result.inSimpleTerms = parsed.inSimpleTerms;
+            result.controlsToCheck = parsed.controlsToCheck;
+            if (parsed.technicalAlignments) {
+              result.technicalAlignments = {
+                ...result.technicalAlignments,
+                ...parsed.technicalAlignments,
+              };
             }
+            if (parsed.auditorChecklist) {
+              result.auditorChecklist = parsed.auditorChecklist;
+            }
+            result.modelUsed = `${modelUsed} + CSA CCM v4.1 Expert Grounding`;
           }
-        } catch (geminiError: any) {
-          console.info('[Control Interpreter Live AI Fallback Engaged]', geminiError?.message || geminiError);
         }
+      } catch (bedrockError: any) {
+        console.info('[Control Interpreter Live AI Fallback Engaged]', bedrockError?.message || bedrockError);
       }
 
       return res.json(result);
@@ -2283,7 +2189,7 @@ Return ONLY valid JSON matching this schema:
     }
   });
 
-  // API 15: AI Redlining & Policy Gap Analysis Engine
+  // API 15: AI Redlining & Policy Gap Analysis Engine (AWS Bedrock)
   app.post('/api/ai/redline', async (req: Request, res: Response) => {
     try {
       const { policyDraftText, policyName, regulationId } = req.body || {};
@@ -2300,18 +2206,16 @@ Return ONLY valid JSON matching this schema:
         return res.status(404).json({ error: `Regulation with ID "${regulationId}" not found in database.` });
       }
 
-      // 1. Run deterministic ground-truth semantic analysis against regulatory controls
+      // 1. Run deterministic ground-truth semantic analysis (always runs)
       const analysisResult = analyzePolicyAgainstRegulation({
         policyDraftText,
         policyName: policyName || 'Internal Policy Draft',
         regulation,
       });
 
-      // 2. Enhance with Gemini if client is available
-      const client = getGemini();
-      if (client) {
-        try {
-          const prompt = `You are a Principal Regulatory Compliance Counsel and Senior AI Auditor specializing in MENAT frameworks (${regulation.name}, ${regulation.authority}).
+      // 2. Enhance with Claude on Bedrock if available
+      try {
+        const prompt = `You are a Principal Regulatory Compliance Counsel and Senior AI Auditor specializing in MENAT frameworks (${regulation.name}, ${regulation.authority}).
 We have conducted a baseline analysis of an uploaded draft internal policy.
 ---
 Draft Policy Title: "${policyName || 'Internal Policy Draft'}"
@@ -2327,38 +2231,34 @@ ${policyDraftText.slice(0, 1800)}
 """
 ---
 Provide an executive review enhancement.
-Return a valid JSON object matching:
+Return ONLY a valid JSON object (no markdown fences):
 {
   "executiveSummary": "Concise 3-4 sentence legal-technical executive summary of gaps",
   "primaryRiskAreas": ["3-4 bullet risk areas highlighting statutory penalty or operational risks"],
   "keyRecommendations": ["3-4 prioritized actions for the CISO/DPO"]
 }`;
 
-          const { response: aiResponse } = await generateContentWithFallback(client, {
-            contents: prompt,
-            config: {
-              responseMimeType: 'application/json',
-            },
-            preferredModel: 'gemini-3.8-flash',
-          });
+        const { text: textResponse, modelUsed } = await invokeClaudeOnBedrock(
+          'You are a regulatory compliance counsel. Return only valid JSON.',
+          prompt,
+          2048
+        );
 
-          const textResponse = aiResponse.text;
-          if (textResponse) {
-            const parsed = parseJSONFromText(textResponse);
-            if (parsed) {
-              if (parsed.executiveSummary) analysisResult.summary.executiveSummary = parsed.executiveSummary;
-              if (Array.isArray(parsed.primaryRiskAreas) && parsed.primaryRiskAreas.length > 0) {
-                analysisResult.summary.primaryRiskAreas = parsed.primaryRiskAreas;
-              }
-              if (Array.isArray(parsed.keyRecommendations) && parsed.keyRecommendations.length > 0) {
-                analysisResult.summary.keyRecommendations = parsed.keyRecommendations;
-              }
-              analysisResult.modelUsed = 'Gemini 3.8 Flash + ComplianceIQ Redline Engine';
+        if (textResponse) {
+          const parsed = parseJSONFromText(textResponse);
+          if (parsed) {
+            if (parsed.executiveSummary) analysisResult.summary.executiveSummary = parsed.executiveSummary;
+            if (Array.isArray(parsed.primaryRiskAreas) && parsed.primaryRiskAreas.length > 0) {
+              analysisResult.summary.primaryRiskAreas = parsed.primaryRiskAreas;
             }
+            if (Array.isArray(parsed.keyRecommendations) && parsed.keyRecommendations.length > 0) {
+              analysisResult.summary.keyRecommendations = parsed.keyRecommendations;
+            }
+            analysisResult.modelUsed = `${modelUsed} + ComplianceIQ Redline Engine`;
           }
-        } catch (geminiError: any) {
-          console.info('[Gemini Redline Live AI Fallback Engaged]', geminiError?.message || geminiError);
         }
+      } catch (bedrockError: any) {
+        console.info('[Bedrock Redline Live AI Fallback Engaged]', bedrockError?.message || bedrockError);
       }
 
       return res.json(analysisResult);

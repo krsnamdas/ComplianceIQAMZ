@@ -212,7 +212,7 @@ export const GUEST_USER: UserProfile = {
 
 export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   regulatoryFeed: true,
-  geminiCopilot: true,
+  aiCopilot: true,
   maturityHeatmap: true,
   regulatoryRoadmap: true,
   regulatoryTimeline: true,

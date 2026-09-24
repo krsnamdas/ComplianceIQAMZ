@@ -33,7 +33,7 @@ export interface UserProfile {
 
 export interface FeatureFlags {
   regulatoryFeed: boolean;
-  geminiCopilot: boolean;
+  aiCopilot: boolean;
   maturityHeatmap: boolean;
   regulatoryRoadmap: boolean;
   regulatoryTimeline: boolean;

@@ -66,7 +66,7 @@ export interface HeatmapFilterState {
   searchQuery: string;
 }
 
-export interface GeminiChatMessage {
+export interface AIChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
