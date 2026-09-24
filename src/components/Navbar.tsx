@@ -334,6 +334,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       }
       return;
     }
+    if (tab === 'admin' && !isCurrentUserAdmin) {
+      setOpenDropdown(null);
+      setMobileMenuOpen(false);
+      return;
+    }
     setActiveTab(tab);
     setOpenDropdown(null);
     setMobileMenuOpen(false);
@@ -524,7 +529,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span>Sign In</span>
               </button>
             ) : (
-              <UserAccountSwitcher onOpenAdminPanel={() => handleSelectTab('admin')} />
+              <UserAccountSwitcher
+                onOpenAdminPanel={() => handleSelectTab('admin')}
+                onNavigateHome={() => handleSelectTab('overview')}
+              />
             )}
 
             {/* Tailored Watchlist & Compliance Reminders Bell Popover */}
@@ -603,19 +611,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   </div>
                                 </div>
                               </div>
-                              <div className="mt-2 pt-2 border-t border-indigo-500/30 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleSelectTab('admin');
-                                    setIsBellOpen(false);
-                                  }}
-                                  className="text-[11px] font-bold text-indigo-300 hover:text-white flex items-center space-x-1 cursor-pointer"
-                                >
-                                  <span>Review in Link Integrity</span>
-                                  <ArrowRight className="w-3 h-3" />
-                                </button>
-                              </div>
+                              {isCurrentUserAdmin && (
+                                <div className="mt-2 pt-2 border-t border-indigo-500/30 flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleSelectTab('admin');
+                                      setIsBellOpen(false);
+                                    }}
+                                    className="text-[11px] font-bold text-indigo-300 hover:text-white flex items-center space-x-1 cursor-pointer"
+                                  >
+                                    <span>Review in Link Integrity</span>
+                                    <ArrowRight className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
 
                             {/* Unverified Links Audit */}
@@ -629,19 +639,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                                   </p>
                                 </div>
                               </div>
-                              <div className="mt-2 pt-2 border-t border-amber-500/30 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleSelectTab('admin');
-                                    setIsBellOpen(false);
-                                  }}
-                                  className="text-[11px] font-bold text-amber-300 hover:text-white flex items-center space-x-1 cursor-pointer"
-                                >
-                                  <span>Audit Regulatory Links</span>
-                                  <ArrowRight className="w-3 h-3" />
-                                </button>
-                              </div>
+                              {isCurrentUserAdmin && (
+                                <div className="mt-2 pt-2 border-t border-amber-500/30 flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleSelectTab('admin');
+                                      setIsBellOpen(false);
+                                    }}
+                                    className="text-[11px] font-bold text-amber-300 hover:text-white flex items-center space-x-1 cursor-pointer"
+                                  >
+                                    <span>Audit Regulatory Links</span>
+                                    <ArrowRight className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
 
                             {/* Automated Crawler Run */}

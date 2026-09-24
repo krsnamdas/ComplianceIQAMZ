@@ -29,6 +29,7 @@ import {
   Calendar,
   ArrowUpDown,
 } from 'lucide-react';
+import { PendingChangesDock } from './PendingChangesDock';
 
 const ALL_SECTORS: SectorType[] = [
   'Banking',
@@ -75,6 +76,13 @@ export const RegulationEditorTab: React.FC = () => {
     deleteRegulation,
     updateRegulationLink,
     resetRegulationsToDefault,
+    pendingRegulationEdits,
+    stageRegulationEdit,
+    unstageRegulationEdit,
+    discardPendingEdits,
+    applyPendingEdits,
+    hasPendingEdits,
+    totalPendingEditsCount,
   } = useAdmin();
 
   // Search & Filters
@@ -99,9 +107,20 @@ export const RegulationEditorTab: React.FC = () => {
   // Quick link update inline states
   const [quickLinkSuccess, setQuickLinkSuccess] = useState<string | null>(null);
 
+  // Effective regulations with any unapplied atomic pending edits merged
+  const effectiveRegulations = useMemo(() => {
+    return regulations.map((reg) => {
+      const pending = pendingRegulationEdits[reg.id];
+      if (pending) {
+        return { ...reg, ...pending };
+      }
+      return reg;
+    });
+  }, [regulations, pendingRegulationEdits]);
+
   // Filtered and Ordered regulations (ordered by jurisdiction and category by default)
   const filteredRegulations = useMemo(() => {
-    const list = regulations.filter((reg) => {
+    const list = effectiveRegulations.filter((reg) => {
       const matchSearch =
         searchTerm === '' ||
         reg.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -131,7 +150,7 @@ export const RegulationEditorTab: React.FC = () => {
         return (b.yearEnacted || 0) - (a.yearEnacted || 0);
       }
     });
-  }, [regulations, countries, searchTerm, countryFilter, categoryFilter, statusFilter, sortBy]);
+  }, [effectiveRegulations, countries, searchTerm, countryFilter, categoryFilter, statusFilter, sortBy]);
 
   // Handle Quick Link Save
   const handleSaveQuickLink = (e: React.FormEvent) => {
@@ -211,6 +230,47 @@ export const RegulationEditorTab: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Pending Staged Changes Alert Banner */}
+      {hasPendingEdits && (
+        <div className="bg-gradient-to-r from-amber-950/70 via-slate-900 to-amber-950/70 border-2 border-amber-500/70 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg shadow-amber-950/40 animate-in fade-in">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4 h-4 text-amber-400 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                  Unsaved Regulatory Changes Staged
+                </span>
+                <span className="text-xs bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded-full font-mono font-bold border border-amber-500/40">
+                  {totalPendingEditsCount} Pending
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                Regulatory status changes or timeline deadline edits are staged. Review below and click "Apply Changes" to persist them atomically to the database.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 shrink-0">
+            <button
+              type="button"
+              onClick={discardPendingEdits}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 cursor-pointer"
+            >
+              Discard All
+            </button>
+            <button
+              type="button"
+              onClick={applyPendingEdits}
+              className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/50 flex items-center space-x-1.5 cursor-pointer shadow-md shadow-emerald-950/60"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Apply Changes ({totalPendingEditsCount})</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {quickLinkSuccess && (
         <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-lg text-emerald-300 text-xs flex items-center space-x-2 animate-in fade-in duration-200">
@@ -293,11 +353,11 @@ export const RegulationEditorTab: React.FC = () => {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
               <tr>
-                <th className="py-3 px-4 w-48 shrink-0 whitespace-nowrap">Jurisdiction &amp; Code</th>
+                <th className="py-3 px-4 w-32 shrink-0 whitespace-nowrap">Jurisdiction &amp; Code</th>
                 <th className="py-3 px-4 min-w-[280px]">Statutory Regulation Name</th>
                 <th className="py-3 px-4 w-48 shrink-0">Authority &amp; Nature</th>
                 <th className="py-3 px-4 w-44 shrink-0 whitespace-nowrap">Enactment &amp; Assessment</th>
-                <th className="py-3 px-4 w-28 shrink-0 whitespace-nowrap">Status</th>
+                <th className="py-3 px-4 w-36 shrink-0 whitespace-nowrap">Status</th>
                 <th className="py-3 px-4 w-28 shrink-0 whitespace-nowrap text-center">Official Links</th>
                 <th className="py-3 px-4 w-24 shrink-0 text-right whitespace-nowrap">Actions</th>
               </tr>
@@ -318,11 +378,19 @@ export const RegulationEditorTab: React.FC = () => {
                   const enactmentStr = formatEnactmentPeriod(reg.enactmentPeriod, reg.effectiveDate, reg.yearEnacted);
                   const reviewFreq = reg.auditFrequency || 'Annually';
                   const timelineStr = reg.auditTimeline || getAuditTimelineDefault(reviewFreq);
+                  const isPending = Boolean(pendingRegulationEdits[reg.id]);
 
                   return (
-                    <tr key={reg.id} className="hover:bg-slate-800/40 transition-colors">
+                    <tr
+                      key={reg.id}
+                      className={`transition-colors ${
+                        isPending
+                          ? 'bg-amber-950/20 border-l-2 border-l-amber-500 hover:bg-amber-950/30'
+                          : 'hover:bg-slate-800/40'
+                      }`}
+                    >
                       {/* Jurisdiction & Code */}
-                      <td className="py-3.5 px-4 w-48 whitespace-nowrap">
+                      <td className="py-3.5 px-4 w-32 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
                           <span className="text-base shrink-0">{country?.flag || '🌐'}</span>
                           <div className="min-w-0">
@@ -396,18 +464,41 @@ export const RegulationEditorTab: React.FC = () => {
                       </td>
 
                       {/* Status */}
-                      <td className="py-3.5 px-4 w-28 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                            reg.status === 'Enacted'
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                              : reg.status === 'Amended'
-                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                              : 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
-                          }`}
-                        >
-                          {reg.status}
-                        </span>
+                      <td className="py-3.5 px-4 w-36 whitespace-nowrap">
+                        <div className="space-y-1">
+                          <select
+                            value={reg.status}
+                            onChange={(e) =>
+                              stageRegulationEdit(reg.id, { status: e.target.value as any })
+                            }
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider cursor-pointer border focus:outline-none ${
+                              reg.status === 'Enacted'
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                : reg.status === 'Amended'
+                                ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                                : 'bg-sky-500/20 text-sky-400 border-sky-500/30'
+                            }`}
+                            title="Click to stage regulatory status change"
+                          >
+                            <option value="Enacted" className="bg-slate-900 text-emerald-400">Enacted</option>
+                            <option value="Amended" className="bg-slate-900 text-amber-400">Amended</option>
+                            <option value="Draft / Public Consultation" className="bg-slate-900 text-sky-400">Draft / Public Consultation</option>
+                          </select>
+                          {isPending && (
+                            <div className="flex items-center space-x-1">
+                              <span className="text-[9px] px-1 rounded font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                ⚡ Staged
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => unstageRegulationEdit(reg.id)}
+                                className="text-[9px] text-slate-400 hover:text-rose-400 underline cursor-pointer"
+                              >
+                                Revert
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
 
                       {/* Official Links */}
@@ -912,6 +1003,9 @@ export const RegulationEditorTab: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Floating Staged Pending Changes Dock */}
+      <PendingChangesDock viewContext="admin" />
     </div>
   );
 };

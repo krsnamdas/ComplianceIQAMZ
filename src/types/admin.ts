@@ -107,7 +107,12 @@ export interface AuditLogEntry {
     | 'SCRAPER_TRIGGERED'
     | 'LINK_AUDIT_TRIGGERED'
     | 'REGULATORY_DOWNLOAD'
-    | 'POLICY_REDLINING';
+    | 'POLICY_REDLINING'
+    | 'TIMELINE_EVENT_CREATED'
+    | 'TIMELINE_EVENT_UPDATED'
+    | 'TIMELINE_EVENT_DELETED'
+    | 'TIMELINE_EVENTS_RESET'
+    | 'TIMELINE_BATCH_APPLIED';
   targetEntity: string;
   details: string;
 }

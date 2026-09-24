@@ -9,6 +9,7 @@ import { AuditTrailTab } from './AuditTrailTab';
 import { SystemBackupTab } from './SystemBackupTab';
 import { LinkIntegrityTab } from './LinkIntegrityTab';
 import { LinkSuggestionsQueueTab } from './LinkSuggestionsQueueTab';
+import { TimelineManagerTab } from './TimelineManagerTab';
 import { ComplianceIQLogo } from '../ComplianceIQLogo';
 import {
   ShieldAlert,
@@ -26,11 +27,13 @@ import {
   RefreshCw,
   Globe2,
   Link2,
+  CalendarClock,
 } from 'lucide-react';
 
 export type AdminSubTab =
   | 'countries'
   | 'regulations'
+  | 'timeline'
   | 'link_integrity'
   | 'link_suggestions'
   | 'features'
@@ -52,6 +55,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
     switchUser,
     countries,
     regulations,
+    timelineEvents = [],
     featureFlags,
     auditLogs,
     isAdminUnlocked,
@@ -66,6 +70,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isFlashingSuccess, setIsFlashingSuccess] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+
+  // Strict RBAC: Normal users are strictly forbidden from viewing or operating the Administrative Console
+  if (!isCurrentUserAdmin) {
+    return (
+      <div className="max-w-xl mx-auto my-12 p-8 bg-slate-900 border border-rose-500/40 rounded-2xl text-center shadow-2xl animate-in fade-in">
+        <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto mb-4">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">Access Denied: Administrator Role Required</h2>
+        <p className="text-xs text-slate-300 mb-6 leading-relaxed">
+          The ComplianceIQ Administrative Console and modular platform feature toggles require Root Administrator authorization. Normal user accounts (<span className="font-mono text-cyan-300">{currentUser.name}</span>, Role: {currentUser.roleLabel}) are strictly barred from viewing or editing administrative settings.
+        </p>
+        <button
+          type="button"
+          onClick={onNavigateHome}
+          className="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors cursor-pointer"
+        >
+          Return to Overview (Main Page)
+        </button>
+      </div>
+    );
+  }
 
   // If Admin session is NOT unlocked, show Admin Authentication Flash Gateway
   if (!isAdminUnlocked) {
@@ -231,6 +257,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
               <span className="font-bold text-emerald-400 text-sm">{regulations.length}</span>
             </div>
             <div className="text-center pr-3 border-r border-slate-800">
+              <span className="text-[10px] text-slate-500 font-mono block uppercase">Deadlines</span>
+              <span className="font-bold text-teal-400 text-sm">{timelineEvents.length}</span>
+            </div>
+            <div className="text-center pr-3 border-r border-slate-800">
               <span className="text-[10px] text-slate-500 font-mono block uppercase">Features</span>
               <span className="font-bold text-amber-400 text-sm">
                 {enabledFeaturesCount}/{Object.keys(featureFlags).length}
@@ -282,6 +312,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
           >
             <BookOpen className="w-3.5 h-3.5" />
             <span>Regulations Editor ({regulations.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('timeline')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'timeline'
+                ? 'bg-teal-600 text-white shadow-sm ring-1 ring-teal-400/50'
+                : 'bg-slate-950/60 hover:bg-slate-800 text-teal-300 hover:text-white border border-teal-500/20'
+            }`}
+          >
+            <CalendarClock className="w-3.5 h-3.5 text-teal-400" />
+            <span>Timeline &amp; Deadlines ({timelineEvents.length})</span>
           </button>
 
           <button
@@ -379,6 +421,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
       <div>
         {activeSubTab === 'countries' && <CountryManagementTab />}
         {activeSubTab === 'regulations' && <RegulationEditorTab />}
+        {activeSubTab === 'timeline' && <TimelineManagerTab />}
         {activeSubTab === 'link_integrity' && <LinkIntegrityTab />}
         {activeSubTab === 'link_suggestions' && <LinkSuggestionsQueueTab />}
         {activeSubTab === 'features' && <FeatureTogglesTab />}

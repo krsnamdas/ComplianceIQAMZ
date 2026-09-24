@@ -19,10 +19,12 @@ import {
 
 interface UserAccountSwitcherProps {
   onOpenAdminPanel?: () => void;
+  onNavigateHome?: () => void;
 }
 
 export const UserAccountSwitcher: React.FC<UserAccountSwitcherProps> = ({
   onOpenAdminPanel,
+  onNavigateHome,
 }) => {
   const { currentUser, isCurrentUserAdmin, users, switchUser, loginWithCredentials, logout, lockAdmin } = useAdmin();
   const [isOpen, setIsOpen] = useState(false);
@@ -79,7 +81,8 @@ export const UserAccountSwitcher: React.FC<UserAccountSwitcherProps> = ({
         setLoginSuccess(null);
         setUsernameInput('');
         setPasswordInput('');
-      }, 1000);
+        if (onNavigateHome) onNavigateHome();
+      }, 700);
     } else {
       setLoginError(result.message || 'Authentication failed. Please verify credentials.');
     }
@@ -114,7 +117,8 @@ export const UserAccountSwitcher: React.FC<UserAccountSwitcherProps> = ({
         setReauthPassword('');
         setReauthSuccess(null);
         setIsOpen(false);
-      }, 800);
+        if (onNavigateHome) onNavigateHome();
+      }, 700);
     } else {
       setReauthError(
         result.message ||
@@ -584,6 +588,7 @@ export const UserAccountSwitcher: React.FC<UserAccountSwitcherProps> = ({
                   onClick={() => {
                     logout();
                     setIsOpen(false);
+                    if (onNavigateHome) onNavigateHome();
                   }}
                   className="w-full py-2 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
                 >

@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Regulation, Country } from '../types/regulatory';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { Regulation, Country, TimelineEvent } from '../types/regulatory';
 import { MENAT_REGULATIONS, MENAT_COUNTRIES } from '../data/menatData';
+import { REGULATORY_TIMELINE_EVENTS } from '../data/regulatoryTimelineData';
 import {
   UserProfile,
   FeatureFlags,
@@ -320,6 +321,7 @@ const STORAGE_KEYS = {
   BROADCAST: 'complianceiq_broadcast_v3',
   AUDIT_LOGS: 'complianceiq_audit_logs_v3',
   LINK_SUGGESTIONS: 'complianceiq_link_suggestions_v3',
+  TIMELINE_EVENTS: 'complianceiq_timeline_events_v3',
 };
 
 interface AdminContextType {
@@ -348,6 +350,7 @@ interface AdminContextType {
   // Feature Flags
   featureFlags: FeatureFlags;
   toggleFeature: (feature: keyof FeatureFlags, value?: boolean) => void;
+  updateFeatureFlags: (newFlags: FeatureFlags) => void;
   resetFeatureFlags: () => void;
 
   // Country & Jurisdiction CRUD
@@ -365,6 +368,27 @@ interface AdminContextType {
   updateRegulationLink: (id: string, officialUrl: string, documentPdfUrl?: string) => void;
   resetRegulationsToDefault: () => void;
   importRegulationsBackup: (newRegs: Regulation[]) => void;
+
+  // Timeline Events & Statutory Deadlines Manager
+  timelineEvents: TimelineEvent[];
+  effectiveTimelineEvents: TimelineEvent[];
+  addTimelineEvent: (event: TimelineEvent) => void;
+  updateTimelineEvent: (id: string, updates: Partial<TimelineEvent>) => void;
+  deleteTimelineEvent: (id: string) => void;
+  resetTimelineEventsToDefault: () => void;
+  batchUpdateTimelineEvents: (updates: { id: string; changes: Partial<TimelineEvent> }[], auditSummary?: string) => void;
+
+  // Atomic Staged Pending Edits (Deadlines & Regulatory Statuses)
+  pendingTimelineEdits: Record<string, Partial<TimelineEvent>>;
+  pendingRegulationEdits: Record<string, Partial<Regulation>>;
+  stageTimelineEdit: (id: string, changes: Partial<TimelineEvent>) => void;
+  unstageTimelineEdit: (id: string) => void;
+  stageRegulationEdit: (id: string, changes: Partial<Regulation>) => void;
+  unstageRegulationEdit: (id: string) => void;
+  discardPendingEdits: () => void;
+  applyPendingEdits: () => { success: boolean; timelineCount: number; regulationCount: number };
+  hasPendingEdits: boolean;
+  totalPendingEditsCount: number;
 
   // System Broadcast Banner
   broadcastBanner: SystemBroadcast;
@@ -666,6 +690,32 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [linkSuggestions]);
 
+  // 8. Dynamic Timeline Events & Statutory Deadlines State
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.TIMELINE_EVENTS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading timeline events from storage:', e);
+    }
+    return REGULATORY_TIMELINE_EVENTS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.TIMELINE_EVENTS, JSON.stringify(timelineEvents));
+    } catch {
+      // ignore
+    }
+  }, [timelineEvents]);
+
+  // 9. Atomic Staged Pending Edits State (Deadlines & Regulatory Statuses)
+  const [pendingTimelineEdits, setPendingTimelineEdits] = useState<Record<string, Partial<TimelineEvent>>>({});
+  const [pendingRegulationEdits, setPendingRegulationEdits] = useState<Record<string, Partial<Regulation>>>({});
+
   const submitLinkSuggestion = (
     regulationId: string,
     linkType: 'officialUrl' | 'documentPdfUrl',
@@ -932,6 +982,14 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const target = users.find((u) => u.id === userId);
     if (target) {
       setCurrentUserId(userId);
+      if (!target.isAdmin && target.role !== 'admin') {
+        setIsAdminUnlocked(false);
+        try {
+          sessionStorage.removeItem(STORAGE_KEYS.ADMIN_UNLOCKED);
+        } catch {
+          // ignore
+        }
+      }
       addAuditLog('USER_SWITCHED', target.name, `Active session switched to ${target.name} (${target.roleLabel}).`);
     }
   };
@@ -970,10 +1028,17 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {
       // ignore
     }
-    if (target.isAdmin) {
+    if (target.isAdmin || target.role === 'admin') {
       setIsAdminUnlocked(true);
       try {
         sessionStorage.setItem(STORAGE_KEYS.ADMIN_UNLOCKED, 'true');
+      } catch {
+        // ignore
+      }
+    } else {
+      setIsAdminUnlocked(false);
+      try {
+        sessionStorage.removeItem(STORAGE_KEYS.ADMIN_UNLOCKED);
       } catch {
         // ignore
       }
@@ -993,10 +1058,17 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } catch {
         // ignore
       }
-      if (target.isAdmin) {
+      if (target.isAdmin || target.role === 'admin') {
         setIsAdminUnlocked(true);
         try {
           sessionStorage.setItem(STORAGE_KEYS.ADMIN_UNLOCKED, 'true');
+        } catch {
+          // ignore
+        }
+      } else {
+        setIsAdminUnlocked(false);
+        try {
+          sessionStorage.removeItem(STORAGE_KEYS.ADMIN_UNLOCKED);
         } catch {
           // ignore
         }
@@ -1144,6 +1216,22 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }).catch((e) => console.warn('[AdminContext] Failed to reset features on backend:', e));
   };
 
+  const updateFeatureFlags = (newFlags: FeatureFlags) => {
+    setFeatureFlags(newFlags);
+    addAuditLog(
+      'FEATURE_TOGGLED',
+      'Batch Feature Flags',
+      'Applied bulk platform feature flags update in one shot.'
+    );
+
+    // Async sync to backend
+    fetch('/api/features', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ features: newFlags }),
+    }).catch((e) => console.warn('[AdminContext] Failed to sync batch features to backend:', e));
+  };
+
   // Regulation Actions
   const addRegulation = (regData: Omit<Regulation, 'id'> & { id?: string }) => {
     const newId =
@@ -1266,6 +1354,265 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  // Timeline Events & Statutory Deadlines Actions
+  const addTimelineEvent = (event: TimelineEvent) => {
+    setTimelineEvents((prev) => [event, ...prev]);
+    addAuditLog(
+      'TIMELINE_EVENT_CREATED',
+      event.title,
+      `Created statutory deadline milestone: "${event.title}" (${event.countryName}, Due: ${event.deadlineDate}, Urgency: ${event.urgency}).`
+    );
+  };
+
+  const updateTimelineEvent = (id: string, updates: Partial<TimelineEvent>) => {
+    setTimelineEvents((prev) =>
+      prev.map((evt) => {
+        if (evt.id === id) {
+          return { ...evt, ...updates };
+        }
+        return evt;
+      })
+    );
+    const target = timelineEvents.find((e) => e.id === id);
+    addAuditLog(
+      'TIMELINE_EVENT_UPDATED',
+      target?.title || id,
+      `Updated statutory deadline: ${updates.deadlineDate ? `Due: ${updates.deadlineDate} ` : ''}${updates.status ? `Status: ${updates.status} ` : ''}${updates.urgency ? `Urgency: ${updates.urgency}` : ''}`
+    );
+  };
+
+  const deleteTimelineEvent = (id: string) => {
+    const target = timelineEvents.find((e) => e.id === id);
+    setTimelineEvents((prev) => prev.filter((e) => e.id !== id));
+    addAuditLog(
+      'TIMELINE_EVENT_DELETED',
+      target?.title || id,
+      `Deleted statutory timeline milestone: "${target?.title || id}".`
+    );
+  };
+
+  const resetTimelineEventsToDefault = () => {
+    setTimelineEvents(REGULATORY_TIMELINE_EVENTS);
+    addAuditLog(
+      'TIMELINE_EVENTS_RESET',
+      'All Timeline Events',
+      'Reset all regulatory statutory timeline milestones and deadlines to baseline dataset.'
+    );
+  };
+
+  const batchUpdateTimelineEvents = (
+    updates: { id: string; changes: Partial<TimelineEvent> }[],
+    auditSummary?: string
+  ) => {
+    if (!updates || updates.length === 0) return;
+    setTimelineEvents((prev) => {
+      const updateMap = new Map(updates.map((u) => [u.id, u.changes]));
+      const next = prev.map((evt) => {
+        if (updateMap.has(evt.id)) {
+          return { ...evt, ...updateMap.get(evt.id) };
+        }
+        return evt;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.TIMELINE_EVENTS, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+
+    addAuditLog(
+      'TIMELINE_BATCH_APPLIED',
+      'Statutory Deadlines Batch',
+      auditSummary || `Applied atomic batch update to ${updates.length} statutory timeline milestone(s).`
+    );
+  };
+
+  // Atomic Staged Pending Edits Management
+  const stageTimelineEdit = (id: string, changes: Partial<TimelineEvent>) => {
+    setPendingTimelineEdits((prev) => {
+      const existing = prev[id] || {};
+      const merged = { ...existing, ...changes };
+
+      // Compare with persisted base event
+      const baseEvent = timelineEvents.find((e) => e.id === id);
+      if (baseEvent) {
+        let isDifferent = false;
+        for (const key of Object.keys(merged) as Array<keyof TimelineEvent>) {
+          if (JSON.stringify(merged[key]) !== JSON.stringify(baseEvent[key])) {
+            isDifferent = true;
+            break;
+          }
+        }
+        if (!isDifferent) {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        }
+      }
+
+      return {
+        ...prev,
+        [id]: merged,
+      };
+    });
+  };
+
+  const unstageTimelineEdit = (id: string) => {
+    setPendingTimelineEdits((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const stageRegulationEdit = (id: string, changes: Partial<Regulation>) => {
+    setPendingRegulationEdits((prev) => {
+      const existing = prev[id] || {};
+      const merged = { ...existing, ...changes };
+
+      const baseReg = regulations.find((r) => r.id === id);
+      if (baseReg) {
+        let isDifferent = false;
+        for (const key of Object.keys(merged) as Array<keyof Regulation>) {
+          if (JSON.stringify(merged[key]) !== JSON.stringify(baseReg[key])) {
+            isDifferent = true;
+            break;
+          }
+        }
+        if (!isDifferent) {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        }
+      }
+
+      return {
+        ...prev,
+        [id]: merged,
+      };
+    });
+  };
+
+  const unstageRegulationEdit = (id: string) => {
+    setPendingRegulationEdits((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const discardPendingEdits = () => {
+    setPendingTimelineEdits({});
+    setPendingRegulationEdits({});
+  };
+
+  const applyPendingEdits = (): { success: boolean; timelineCount: number; regulationCount: number } => {
+    const timelineIds = Object.keys(pendingTimelineEdits);
+    const regulationIds = Object.keys(pendingRegulationEdits);
+
+    if (timelineIds.length === 0 && regulationIds.length === 0) {
+      return { success: false, timelineCount: 0, regulationCount: 0 };
+    }
+
+    // Single Atomic Transaction: commit both timeline events & regulations
+    if (timelineIds.length > 0) {
+      setTimelineEvents((prev) => {
+        const next = prev.map((evt) => {
+          if (pendingTimelineEdits[evt.id]) {
+            return { ...evt, ...pendingTimelineEdits[evt.id] };
+          }
+          return evt;
+        });
+        try {
+          localStorage.setItem(STORAGE_KEYS.TIMELINE_EVENTS, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+
+    if (regulationIds.length > 0) {
+      setRegulations((prev) => {
+        const next = prev.map((reg) => {
+          if (pendingRegulationEdits[reg.id]) {
+            return {
+              ...reg,
+              ...pendingRegulationEdits[reg.id],
+              lastUpdated: new Date().toISOString().split('T')[0],
+            };
+          }
+          return reg;
+        });
+        try {
+          localStorage.setItem(STORAGE_KEYS.REGULATIONS, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+
+    // Consolidated audit trail
+    const timelineDetails = timelineIds.map((id) => {
+      const evt = timelineEvents.find((e) => e.id === id);
+      const changes = pendingTimelineEdits[id];
+      const changeParts: string[] = [];
+      if (changes.deadlineDate) changeParts.push(`Deadline: ${changes.deadlineDate}`);
+      if (changes.status) changeParts.push(`Status: ${changes.status}`);
+      if (changes.urgency) changeParts.push(`Urgency: ${changes.urgency}`);
+      if (changes.transitionStartDate) changeParts.push(`Grace: ${changes.transitionStartDate}`);
+      return `"${evt?.title || id}" [${changeParts.join(', ')}]`;
+    });
+
+    const regulationDetails = regulationIds.map((id) => {
+      const reg = regulations.find((r) => r.id === id);
+      const changes = pendingRegulationEdits[id];
+      const changeParts: string[] = [];
+      if (changes.status) changeParts.push(`Status: ${changes.status}`);
+      return `"${reg?.code || id}" [${changeParts.join(', ')}]`;
+    });
+
+    const combinedDetails = [
+      timelineIds.length > 0 ? `${timelineIds.length} Deadline(s): ${timelineDetails.join('; ')}` : '',
+      regulationIds.length > 0 ? `${regulationIds.length} Regulation Status(es): ${regulationDetails.join('; ')}` : '',
+    ]
+      .filter(Boolean)
+      .join(' | ');
+
+    addAuditLog(
+      'TIMELINE_BATCH_APPLIED',
+      'Statutory Deadlines & Statuses',
+      `Applied atomic batch transaction: Persisted updates to ${timelineIds.length} statutory deadline(s) and ${regulationIds.length} regulatory status(es). Summary: ${combinedDetails}`
+    );
+
+    const result = {
+      success: true,
+      timelineCount: timelineIds.length,
+      regulationCount: regulationIds.length,
+    };
+
+    setPendingTimelineEdits({});
+    setPendingRegulationEdits({});
+
+    return result;
+  };
+
+  const hasPendingEdits = Object.keys(pendingTimelineEdits).length > 0 || Object.keys(pendingRegulationEdits).length > 0;
+  const totalPendingEditsCount = Object.keys(pendingTimelineEdits).length + Object.keys(pendingRegulationEdits).length;
+
+  const effectiveTimelineEvents = useMemo(() => {
+    if (Object.keys(pendingTimelineEdits).length === 0) return timelineEvents;
+    return timelineEvents.map((evt) => {
+      const pending = pendingTimelineEdits[evt.id];
+      if (pending) {
+        return { ...evt, ...pending };
+      }
+      return evt;
+    });
+  }, [timelineEvents, pendingTimelineEdits]);
+
   // Country & Jurisdiction Actions
   const addCountry = (countryData: Country) => {
     setCountriesRaw((prev) => {
@@ -1375,6 +1722,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         countries: countriesRaw,
         regulationsCount: regulations.length,
         regulations,
+        timelineEventsCount: timelineEvents.length,
+        timelineEvents,
         auditLogs,
       },
     };
@@ -1400,6 +1749,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (parsed.data.broadcastBanner) setBroadcastBanner(parsed.data.broadcastBanner);
       if (Array.isArray(parsed.data.countries)) setCountriesRaw(parsed.data.countries);
       if (Array.isArray(parsed.data.regulations)) setRegulations(parsed.data.regulations);
+      if (Array.isArray(parsed.data.timelineEvents)) setTimelineEvents(parsed.data.timelineEvents);
 
       addAuditLog('BACKUP_RESTORED', 'Full System Backup', `Imported backup snapshot from ${parsed.exportTimestamp || 'file'}.`);
       return true;
@@ -1433,6 +1783,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         featureFlags,
         toggleFeature,
+        updateFeatureFlags,
         resetFeatureFlags,
 
         countries,
@@ -1448,6 +1799,25 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateRegulationLink,
         resetRegulationsToDefault,
         importRegulationsBackup,
+
+        timelineEvents,
+        effectiveTimelineEvents,
+        addTimelineEvent,
+        updateTimelineEvent,
+        deleteTimelineEvent,
+        resetTimelineEventsToDefault,
+        batchUpdateTimelineEvents,
+
+        pendingTimelineEdits,
+        pendingRegulationEdits,
+        stageTimelineEdit,
+        unstageTimelineEdit,
+        stageRegulationEdit,
+        unstageRegulationEdit,
+        discardPendingEdits,
+        applyPendingEdits,
+        hasPendingEdits,
+        totalPendingEditsCount,
 
         broadcastBanner,
         updateBroadcastBanner,

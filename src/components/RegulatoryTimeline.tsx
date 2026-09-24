@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { TimelineEvent, SectorType, RegulatoryCategory, Country } from '../types/regulatory';
 import { REGULATORY_TIMELINE_EVENTS } from '../data/regulatoryTimelineData';
+import { useAdmin } from '../context/AdminContext';
 import {
   Calendar,
   Clock,
@@ -25,7 +26,9 @@ import {
   Square,
   Building2,
   Globe2,
+  ShieldCheck,
 } from 'lucide-react';
+import { PendingChangesDock } from './AdminPanel/PendingChangesDock';
 
 interface RegulatoryTimelineProps {
   countries: Country[];
@@ -48,6 +51,28 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
   pinnedRegulationIds = [],
   onTogglePin,
 }) => {
+  const {
+    effectiveTimelineEvents,
+    isCurrentUserAdmin,
+    pendingTimelineEdits,
+    pendingRegulationEdits,
+    stageTimelineEdit,
+    unstageTimelineEdit,
+    stageRegulationEdit,
+    unstageRegulationEdit,
+    hasPendingEdits,
+    totalPendingEditsCount,
+    applyPendingEdits,
+    discardPendingEdits,
+    regulations,
+  } = useAdmin();
+
+  const activeTimelineEvents = useMemo(() => {
+    return effectiveTimelineEvents && effectiveTimelineEvents.length > 0
+      ? effectiveTimelineEvents
+      : REGULATORY_TIMELINE_EVENTS;
+  }, [effectiveTimelineEvents]);
+
   // View mode: 'gantt' | 'feed' | 'quarterly'
   const [viewMode, setViewMode] = useState<'gantt' | 'feed' | 'quarterly'>('gantt');
 
@@ -92,7 +117,7 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
 
   // Filter events
   const filteredEvents = useMemo(() => {
-    return REGULATORY_TIMELINE_EVENTS.filter((evt) => {
+    return activeTimelineEvents.filter((evt) => {
       // Horizon filter
       const evtStart = new Date(evt.startDate).getTime();
       const evtDeadline = new Date(evt.deadlineDate).getTime();
@@ -141,12 +166,12 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
 
       return true;
     }).sort((a, b) => new Date(a.deadlineDate).getTime() - new Date(b.deadlineDate).getTime());
-  }, [horizon, selectedCountryFilter, selectedEventType, selectedUrgency, selectedCategory, searchQuery]);
+  }, [activeTimelineEvents, horizon, selectedCountryFilter, selectedEventType, selectedUrgency, selectedCategory, searchQuery]);
 
   // Selected event
   const selectedEvent = useMemo(() => {
-    return REGULATORY_TIMELINE_EVENTS.find((e) => e.id === selectedEventId) || null;
-  }, [selectedEventId]);
+    return activeTimelineEvents.find((e) => e.id === selectedEventId) || null;
+  }, [activeTimelineEvents, selectedEventId]);
 
   // Calculate days remaining helper
   const getDaysRemaining = (deadlineStr: string) => {
@@ -523,6 +548,47 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
         </div>
       </div>
 
+      {/* Admin Pending Changes Banner */}
+      {isCurrentUserAdmin && hasPendingEdits && (
+        <div className="bg-gradient-to-r from-amber-950/70 via-slate-900 to-amber-950/70 border-2 border-amber-500/70 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg shadow-amber-950/40 animate-in fade-in">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-4 h-4 text-amber-400 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                  Timeline Pending Changes
+                </span>
+                <span className="text-xs bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded-full font-mono font-bold border border-amber-500/40">
+                  {totalPendingEditsCount} Pending
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                Statutory deadline and regulatory status modifications are staged. Click "Apply Changes" below or in the floating dock to persist atomically.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 shrink-0">
+            <button
+              type="button"
+              onClick={discardPendingEdits}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 cursor-pointer"
+            >
+              Discard
+            </button>
+            <button
+              type="button"
+              onClick={applyPendingEdits}
+              className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/50 flex items-center space-x-1.5 cursor-pointer shadow-md shadow-emerald-950/60"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Apply Changes</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Filter Toolbar */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-wrap items-center gap-3 text-xs">
         {/* Search */}
@@ -759,6 +825,11 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
                                 >
                                   {evt.urgency}
                                 </span>
+                                {pendingTimelineEdits[evt.id] && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                    ⚡ Staged
+                                  </span>
+                                )}
                               </div>
 
                               <div className="text-[11px] text-slate-400 truncate mt-0.5" title={evt.title}>
@@ -784,7 +855,7 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
                                     : isImminent
                                     ? 'bg-gradient-to-r from-amber-600/80 to-rose-600/90 border border-rose-500 text-white animate-pulse'
                                     : 'bg-emerald-600/80 border border-emerald-500 text-white'
-                                }`}
+                                } ${pendingTimelineEdits[evt.id] ? 'ring-2 ring-amber-400' : ''}`}
                                 style={{
                                   left: `${leftPct}%`,
                                   width: `${widthPct}%`,
@@ -893,6 +964,12 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
                             <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-xs text-slate-300 font-semibold">
                               {evt.regulationCode}
                             </span>
+                            {pendingTimelineEdits[evt.id] && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wide inline-flex items-center space-x-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                                <span>Pending Edit</span>
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center space-x-2 text-xs text-slate-400 mt-0.5">
                             <span className="font-medium text-slate-300">{evt.authority}</span>
@@ -1043,6 +1120,11 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
                               <span className="font-bold text-xs text-white group-hover:text-emerald-400">
                                 {evt.regulationCode}
                               </span>
+                              {pendingTimelineEdits[evt.id] && (
+                                <span className="text-[9px] px-1 py-0.2 rounded font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                  ⚡ Staged
+                                </span>
+                              )}
                             </div>
                             <span className="font-mono text-[11px] text-slate-300">
                               {evt.deadlineDate}
@@ -1156,6 +1238,155 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Administrator Statutory Controls (Live Edit & Atomic Staging) */}
+            {isCurrentUserAdmin && (
+              <div className="mt-4 p-4 rounded-xl bg-slate-950/90 border-2 border-emerald-500/40 shadow-lg shadow-emerald-950/20">
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+                  <div className="flex items-center space-x-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      Administrator Live Statutory Controls
+                    </span>
+                  </div>
+                  {pendingTimelineEdits[selectedEvent.id] ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase">
+                      ⚡ Staged Edit
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      Atomic Transaction Staged
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                      Statutory Deadline Date
+                    </label>
+                    <input
+                      type="date"
+                      value={selectedEvent.deadlineDate}
+                      onChange={(e) =>
+                        stageTimelineEdit(selectedEvent.id, { deadlineDate: e.target.value })
+                      }
+                      className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                      Grace / Transition Start
+                    </label>
+                    <input
+                      type="date"
+                      value={selectedEvent.transitionStartDate || ''}
+                      onChange={(e) =>
+                        stageTimelineEdit(selectedEvent.id, { transitionStartDate: e.target.value })
+                      }
+                      className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                      Enforcement Urgency
+                    </label>
+                    <select
+                      value={selectedEvent.urgency}
+                      onChange={(e) =>
+                        stageTimelineEdit(selectedEvent.id, { urgency: e.target.value as any })
+                      }
+                      className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                    >
+                      <option value="Critical">Critical</option>
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Informational">Informational</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                      Statutory Status
+                    </label>
+                    <select
+                      value={selectedEvent.status}
+                      onChange={(e) =>
+                        stageTimelineEdit(selectedEvent.id, { status: e.target.value as any })
+                      }
+                      className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                    >
+                      <option value="Imminent (<90 Days)">Imminent (&lt;90 Days)</option>
+                      <option value="Upcoming (2026-2027)">Upcoming (2026-2027)</option>
+                      <option value="In Consultation">In Consultation</option>
+                      <option value="Completed / Active">Completed / Active</option>
+                      <option value="Long-Term Horizon (2027+)">Long-Term Horizon (2027+)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Linked Regulation Status if applicable */}
+                {selectedEvent.regulationId && (
+                  <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div>
+                      <span className="text-[11px] font-medium text-slate-400 block">
+                        Linked Regulation Gazette Status ({selectedEvent.regulationCode})
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        Updates official status in directory and search indices
+                      </span>
+                    </div>
+                    <select
+                      value={
+                        pendingRegulationEdits[selectedEvent.regulationId]?.status ||
+                        regulations.find((r) => r.id === selectedEvent.regulationId)?.status ||
+                        'Enacted'
+                      }
+                      onChange={(e) =>
+                        stageRegulationEdit(selectedEvent.regulationId!, { status: e.target.value as any })
+                      }
+                      className="bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-lg px-2.5 py-1.5 text-xs text-cyan-300 font-semibold min-w-[150px]"
+                    >
+                      <option value="Enacted">Enacted</option>
+                      <option value="Amended">Amended</option>
+                      <option value="Draft / Public Consultation">Draft / Public Consultation</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Revert / Apply inline actions */}
+                <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400">
+                    {hasPendingEdits
+                      ? `${totalPendingEditsCount} unsaved statutory change(s) staged.`
+                      : 'Changes made above are staged for atomic application.'}
+                  </span>
+                  <div className="flex items-center space-x-2">
+                    {pendingTimelineEdits[selectedEvent.id] && (
+                      <button
+                        type="button"
+                        onClick={() => unstageTimelineEdit(selectedEvent.id)}
+                        className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+                      >
+                        Revert Item
+                      </button>
+                    )}
+                    {hasPendingEdits && (
+                      <button
+                        type="button"
+                        onClick={applyPendingEdits}
+                        className="px-3 py-1 rounded-md text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center space-x-1 cursor-pointer shadow-md shadow-emerald-950/50"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Apply Changes</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Description & Intent */}
             <div className="mt-5 space-y-2">
@@ -1325,6 +1556,8 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
           </div>
         </div>
       )}
+      {/* Admin Floating Staged Changes Dock */}
+      {isCurrentUserAdmin && <PendingChangesDock viewContext="timeline" />}
     </div>
   );
 };

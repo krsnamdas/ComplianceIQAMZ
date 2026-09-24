@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Navbar, NavigationTab } from './components/Navbar';
 import { CountryOverview } from './components/CountryOverview';
 import { RegulationCard } from './components/RegulationCard';
@@ -51,13 +51,31 @@ import { Search, Filter, Shield, Globe2, BookOpen, Layers, CheckCircle2, AlertCi
 
 export default function App() {
   const { canManageWatchlist, canTriggerScraper, triggerRestrictedAction } = useRBAC();
-  const { regulations, countries, featureFlags, isAuthenticated, addAuditLog } = useAdmin();
+  const { currentUser, isCurrentUserAdmin, regulations, countries, featureFlags, isAuthenticated, addAuditLog } = useAdmin();
 
   const [activeTab, setActiveTab] = useState<NavigationTab>('overview');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [targetModuleNameForLogin, setTargetModuleNameForLogin] = useState<string>('');
   const [pendingTabAfterLogin, setPendingTabAfterLogin] = useState<NavigationTab | null>(null);
+
+  // Whenever the active user account changes (switch user, sign in, sign out), redirect immediately to overview (main page)
+  const prevUserIdRef = useRef(currentUser?.id);
+  useEffect(() => {
+    if (prevUserIdRef.current && prevUserIdRef.current !== currentUser?.id) {
+      prevUserIdRef.current = currentUser?.id;
+      setActiveTab('overview');
+    } else if (currentUser?.id) {
+      prevUserIdRef.current = currentUser.id;
+    }
+  }, [currentUser?.id]);
+
+  // Strict Security Guard: Never allow non-admins on the admin tab
+  useEffect(() => {
+    if (activeTab === 'admin' && !isCurrentUserAdmin) {
+      setActiveTab('overview');
+    }
+  }, [activeTab, isCurrentUserAdmin]);
 
   const handleRequestLogin = (targetTab: NavigationTab) => {
     const tabNames: Record<string, string> = {
@@ -140,6 +158,13 @@ export default function App() {
   // Gemini AI Copilot State
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [aiChatInitialPrompt, setAiChatInitialPrompt] = useState<string | undefined>(undefined);
+
+  // Auto-close AI Copilot Chatbot if feature flag is toggled off
+  useEffect(() => {
+    if (!featureFlags.geminiCopilot && isAIChatOpen) {
+      setIsAIChatOpen(false);
+    }
+  }, [featureFlags.geminiCopilot, isAIChatOpen]);
 
   // Regulatory Watchlist State (Persistent)
   const [watchlistPins, setWatchlistPins] = useState<WatchlistPin[]>(() => loadWatchlistPins());
@@ -931,10 +956,14 @@ export default function App() {
               setSearchTerm(code);
               setActiveTab('regulations');
             }}
-            onOpenAIChatWithPrompt={(prompt) => {
-              setAiChatInitialPrompt(prompt);
-              setIsAIChatOpen(true);
-            }}
+            onOpenAIChatWithPrompt={
+              featureFlags.geminiCopilot
+                ? (prompt) => {
+                    setAiChatInitialPrompt(prompt);
+                    setIsAIChatOpen(true);
+                  }
+                : undefined
+            }
           />
         )}
 
@@ -987,10 +1016,14 @@ export default function App() {
               setSelectedCountryId(countryId);
               setActiveTab('regulations');
             }}
-            onOpenAIChatWithPrompt={(prompt) => {
-              setAiChatInitialPrompt(prompt);
-              setIsAIChatOpen(true);
-            }}
+            onOpenAIChatWithPrompt={
+              featureFlags.geminiCopilot
+                ? (prompt) => {
+                    setAiChatInitialPrompt(prompt);
+                    setIsAIChatOpen(true);
+                  }
+                : undefined
+            }
           />
         )}
 
@@ -1082,7 +1115,7 @@ export default function App() {
         )}
 
         {/* VIEW: Backend Administrative Console (CRUD, Feature Toggles, IAM Users, Broadcasts, Audit Trail) */}
-        {activeTab === 'admin' && (
+        {activeTab === 'admin' && isCurrentUserAdmin && (
           <AdminPanel onNavigateHome={() => setActiveTab('overview')} />
         )}
       </main>
@@ -1115,24 +1148,28 @@ export default function App() {
       />
 
       {/* Floating Gemini AI Copilot Quick-Launch Button */}
-      <button
-        onClick={() => setIsAIChatOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center space-x-2 px-4 py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-full shadow-2xl transition-all duration-200 transform hover:scale-105 active:scale-95 border border-emerald-400/40 group cursor-pointer"
-        title="Open MENAT AI Compliance Copilot (Google Search Grounded)"
-      >
-        <div className="relative">
-          <Sparkles className="w-5 h-5 text-white animate-pulse" />
-          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyan-300 ring-2 ring-slate-900" />
-        </div>
-        <span className="text-xs font-bold tracking-wide pr-1">AI Copilot</span>
-      </button>
+      {featureFlags.geminiCopilot && (
+        <button
+          onClick={() => setIsAIChatOpen(true)}
+          className="fixed bottom-6 right-6 z-40 flex items-center space-x-2 px-4 py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-full shadow-2xl transition-all duration-200 transform hover:scale-105 active:scale-95 border border-emerald-400/40 group cursor-pointer animate-in fade-in zoom-in-95"
+          title="Open MENAT AI Compliance Copilot (Google Search Grounded)"
+        >
+          <div className="relative">
+            <Sparkles className="w-5 h-5 text-white animate-pulse" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyan-300 ring-2 ring-slate-900" />
+          </div>
+          <span className="text-xs font-bold tracking-wide pr-1">AI Copilot</span>
+        </button>
+      )}
 
       {/* Gemini AI Copilot Chat Drawer */}
-      <GeminiComplianceChatbot
-        isOpen={isAIChatOpen}
-        onClose={() => setIsAIChatOpen(false)}
-        initialPrompt={aiChatInitialPrompt}
-      />
+      {featureFlags.geminiCopilot && (
+        <GeminiComplianceChatbot
+          isOpen={isAIChatOpen}
+          onClose={() => setIsAIChatOpen(false)}
+          initialPrompt={aiChatInitialPrompt}
+        />
+      )}
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 bg-slate-950 py-6 text-xs text-slate-500">
