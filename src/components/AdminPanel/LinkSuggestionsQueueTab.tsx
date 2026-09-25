@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useAdmin } from '../../context/AdminContext';
+import { RegulationSuggestionsSection } from './RegulationSuggestionsSection';
 import {
   Link2,
   CheckCircle2,
@@ -75,6 +76,9 @@ export const LinkSuggestionsQueueTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* User Regulation Field-Correction Suggestions (all fields) */}
+      <RegulationSuggestionsSection />
+
       {/* Header Banner */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

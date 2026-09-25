@@ -4,6 +4,7 @@ import { useRBAC } from '../context/RBACContext';
 import { useAdmin } from '../context/AdminContext';
 import { SmartInsightCard } from './SmartInsightCard';
 import { SuggestLinkModal } from './SuggestLinkModal';
+import { SuggestCorrectionModal } from './SuggestCorrectionModal';
 import { calculateUrgencyScore } from '../utils/urgencyScore';
 import { analyzeRegulationMandate, analyzeControlMandate } from '../utils/mandateConfidence';
 import { ConfidenceLevelLegendModal } from './ConfidenceLevelLegendModal';
@@ -40,6 +41,7 @@ import {
   BookOpen,
   Filter,
   Link2,
+  PencilLine,
 } from 'lucide-react';
 
 interface RegulationCardProps {
@@ -70,7 +72,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
   onRedlinePolicy,
 }) => {
   const { canManageWatchlist } = useRBAC();
-  const { getLinkAudit, addAuditLog, featureFlags, timelineEvents } = useAdmin();
+  const { getLinkAudit, addAuditLog, featureFlags, timelineEvents, isCurrentUserAdmin, isAuthenticated } = useAdmin();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showUrgencyBreakdown, setShowUrgencyBreakdown] = useState(false);
@@ -83,6 +85,10 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
     isOpen: false,
     linkType: 'officialUrl',
   });
+  const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
+
+  // Non-admin authenticated users may propose corrections (admins edit directly).
+  const canSuggestCorrection = isAuthenticated && !isCurrentUserAdmin;
 
   // Backend AI Requirement Confidence Analysis State
   const [aiAnalysis, setAiAnalysis] = useState<RegulationRequirementsAnalysis | null>(null);
@@ -733,6 +739,19 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
               </button>
             )}
 
+            {/* Suggest a Correction (non-admin authenticated users only) */}
+            {canSuggestCorrection && (
+              <button
+                type="button"
+                onClick={() => setIsCorrectionModalOpen(true)}
+                className="px-2.5 py-1 text-xs font-medium rounded bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-500/40 flex items-center space-x-1.5 transition-colors shadow-sm cursor-pointer"
+                title="Propose a correction to any field of this regulation for admin review"
+              >
+                <PencilLine className="w-3 h-3 text-indigo-300" />
+                <span>Suggest Correction</span>
+              </button>
+            )}
+
             {/* Gazette PDF Document Link with Verified vs Missing Indicator */}
             {regulation.documentPdfUrl && (() => {
               const pdfAudit = getLinkAudit ? getLinkAudit(regulation.id, 'documentPdfUrl') : undefined;
@@ -1104,6 +1123,16 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
         initialLinkType={suggestModal.linkType}
         countryName={countryName}
       />
+
+      {/* Suggest Full Field Correction Modal */}
+      {isCorrectionModalOpen && (
+        <SuggestCorrectionModal
+          isOpen={isCorrectionModalOpen}
+          onClose={() => setIsCorrectionModalOpen(false)}
+          regulation={regulation}
+          countryName={countryName}
+        />
+      )}
     </div>
   );
 };

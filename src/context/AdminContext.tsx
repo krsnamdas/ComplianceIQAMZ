@@ -9,6 +9,8 @@ import {
   AuditLogEntry,
   UserRoleType,
   LinkSuggestion,
+  RegulationSuggestion,
+  RegulationFieldChange,
 } from '../types/admin';
 
 export const INITIAL_USERS: UserProfile[] = [
@@ -321,6 +323,7 @@ const STORAGE_KEYS = {
   BROADCAST: 'complianceiq_broadcast_v3',
   AUDIT_LOGS: 'complianceiq_audit_logs_v3',
   LINK_SUGGESTIONS: 'complianceiq_link_suggestions_v3',
+  REGULATION_SUGGESTIONS: 'complianceiq_regulation_suggestions_v3',
   TIMELINE_EVENTS: 'complianceiq_timeline_events_v3',
 };
 
@@ -429,6 +432,20 @@ interface AdminContextType {
     notes?: string
   ) => { success: boolean; message: string };
   reviewLinkSuggestion: (
+    suggestionId: string,
+    action: 'accept' | 'reject',
+    adminNotes?: string
+  ) => void;
+
+  // User-Submitted Regulation Field-Correction Workflow (all fields)
+  regulationSuggestions: RegulationSuggestion[];
+  submitRegulationSuggestion: (
+    regulationId: string,
+    changes: RegulationFieldChange[],
+    proposedValues: Record<string, unknown>,
+    notes?: string
+  ) => { success: boolean; message: string };
+  reviewRegulationSuggestion: (
     suggestionId: string,
     action: 'accept' | 'reject',
     adminNotes?: string
@@ -714,6 +731,28 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [linkSuggestions]);
 
+  // 7b. User-Submitted Regulation Field-Correction Suggestions State
+  const [regulationSuggestions, setRegulationSuggestions] = useState<RegulationSuggestion[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.REGULATION_SUGGESTIONS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.REGULATION_SUGGESTIONS, JSON.stringify(regulationSuggestions));
+    } catch {
+      // ignore
+    }
+  }, [regulationSuggestions]);
+
   // 8. Dynamic Timeline Events & Statutory Deadlines State
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>(() => {
     try {
@@ -938,6 +977,99 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         'REGULATION_LINK_UPDATED',
         suggestion.regulationCode,
         `Admin rejected user link submission for "${suggestion.suggestedUrl}". Reason: ${adminNotes || 'Declined'}.`
+      );
+    }
+  };
+
+  // --- Regulation field-correction suggestions (all fields) ---
+  const submitRegulationSuggestion = (
+    regulationId: string,
+    changes: RegulationFieldChange[],
+    proposedValues: Record<string, unknown>,
+    notes?: string
+  ): { success: boolean; message: string } => {
+    if (!changes || changes.length === 0) {
+      return { success: false, message: 'No changes were proposed. Adjust at least one field before submitting.' };
+    }
+    const targetReg = regulations.find((r) => r.id === regulationId);
+    if (!targetReg) {
+      return { success: false, message: 'Target regulation not found.' };
+    }
+
+    const newSuggestion: RegulationSuggestion = {
+      id: `regsug_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      regulationId,
+      regulationCode: targetReg.code,
+      regulationName: targetReg.name,
+      changes,
+      proposedValues,
+      notes: notes?.trim() || undefined,
+      submittedByUserId: currentUser.id,
+      submittedByUserName: `${currentUser.name} (${currentUser.roleLabel})`,
+      submittedAt: new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC',
+      status: 'pending',
+    };
+
+    setRegulationSuggestions((prev) => [newSuggestion, ...prev]);
+    addAuditLog(
+      'SUGGESTION_SUBMITTED',
+      targetReg.code,
+      `User ${currentUser.name} proposed ${changes.length} field correction(s) for "${targetReg.name}": ${changes.map((c) => c.fieldLabel).join(', ')}.`
+    );
+
+    return {
+      success: true,
+      message: 'Your suggested correction has been submitted to the Administrator review queue.',
+    };
+  };
+
+  const reviewRegulationSuggestion = (
+    suggestionId: string,
+    action: 'accept' | 'reject',
+    adminNotes?: string
+  ) => {
+    const suggestion = regulationSuggestions.find((s) => s.id === suggestionId);
+    if (!suggestion) return;
+
+    if (action === 'accept') {
+      // Apply the proposed field values via updateRegulation (persists to region file)
+      updateRegulation(suggestion.regulationId, suggestion.proposedValues as Partial<Regulation>);
+      setRegulationSuggestions((prev) =>
+        prev.map((s) =>
+          s.id === suggestionId
+            ? {
+                ...s,
+                status: 'accepted' as const,
+                reviewedAt: new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC',
+                reviewedBy: currentUser.name,
+                reviewNotes: adminNotes,
+              }
+            : s
+        )
+      );
+      addAuditLog(
+        'SUGGESTION_ACCEPTED',
+        suggestion.regulationCode,
+        `Admin accepted user correction for "${suggestion.regulationName}". Applied fields: ${suggestion.changes.map((c) => c.fieldLabel).join(', ')}.`
+      );
+    } else {
+      setRegulationSuggestions((prev) =>
+        prev.map((s) =>
+          s.id === suggestionId
+            ? {
+                ...s,
+                status: 'rejected' as const,
+                reviewedAt: new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC',
+                reviewedBy: currentUser.name,
+                reviewNotes: adminNotes,
+              }
+            : s
+        )
+      );
+      addAuditLog(
+        'SUGGESTION_REJECTED',
+        suggestion.regulationCode,
+        `Admin rejected user correction for "${suggestion.regulationName}". Reason: ${adminNotes || 'Declined'}.`
       );
     }
   };
@@ -1957,6 +2089,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         linkSuggestions,
         submitLinkSuggestion,
         reviewLinkSuggestion,
+
+        regulationSuggestions,
+        submitRegulationSuggestion,
+        reviewRegulationSuggestion,
       }}
     >
       {children}

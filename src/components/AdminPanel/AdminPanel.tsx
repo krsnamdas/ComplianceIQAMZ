@@ -63,7 +63,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
     lockAdmin,
     quickLoginAs,
     linkSuggestions = [],
+    regulationSuggestions = [],
   } = useAdmin();
+
+  const pendingSuggestionsCount =
+    linkSuggestions.filter((s) => s.status === 'pending').length +
+    regulationSuggestions.filter((s) => s.status === 'pending').length;
 
   const [activeSubTab, setActiveSubTab] = useState<AdminSubTab>('regulations');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
@@ -347,10 +352,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
             }`}
           >
             <Link2 className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Link Suggestions</span>
-            {linkSuggestions.filter((s) => s.status === 'pending').length > 0 && (
+            <span>User Suggestions</span>
+            {pendingSuggestionsCount > 0 && (
               <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950 font-mono">
-                {linkSuggestions.filter((s) => s.status === 'pending').length}
+                {pendingSuggestionsCount}
               </span>
             )}
           </button>

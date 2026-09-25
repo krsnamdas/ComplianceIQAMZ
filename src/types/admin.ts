@@ -67,6 +67,43 @@ export interface LinkSuggestion {
   reviewedBy?: string;
 }
 
+/**
+ * A single proposed change to one regulation field (before -> after).
+ * `field` is a key of the Regulation object; values are stringified for
+ * display and stored as the raw proposed value for applying on accept.
+ */
+export interface RegulationFieldChange {
+  field: string;         // e.g. 'officialUrl', 'effectiveDate', 'auditTimeline', 'scopeSummary'
+  fieldLabel: string;    // human-friendly label e.g. 'Official Portal URL'
+  currentValue: string;  // current value rendered as text (for diff display)
+  suggestedValue: string; // proposed value rendered as text (for diff display)
+}
+
+/**
+ * A user-submitted correction proposing changes to one or more fields of a
+ * regulation. Generalizes the link-only suggestion so any regulation field
+ * (dates, status, scope, timeline, links, sectors, etc.) can be suggested by a
+ * normal user and reviewed by an admin. On accept, the changes are applied to
+ * the regulation via updateRegulation (which persists to the region file).
+ */
+export interface RegulationSuggestion {
+  id: string;
+  regulationId: string;
+  regulationCode: string;
+  regulationName: string;
+  changes: RegulationFieldChange[];
+  /** The raw proposed values keyed by field, applied on accept. */
+  proposedValues: Record<string, unknown>;
+  notes?: string;
+  submittedByUserId: string;
+  submittedByUserName: string;
+  submittedAt: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewNotes?: string;
+}
+
 export interface SystemBroadcast {
   enabled: boolean;
   level: 'critical' | 'warning' | 'info';
@@ -113,7 +150,10 @@ export interface AuditLogEntry {
     | 'TIMELINE_EVENT_DELETED'
     | 'TIMELINE_EVENTS_RESET'
     | 'TIMELINE_BATCH_APPLIED'
-    | 'SYSTEM_CONFIG_UPDATED';
+    | 'SYSTEM_CONFIG_UPDATED'
+    | 'SUGGESTION_SUBMITTED'
+    | 'SUGGESTION_ACCEPTED'
+    | 'SUGGESTION_REJECTED';
   targetEntity: string;
   details: string;
 }
