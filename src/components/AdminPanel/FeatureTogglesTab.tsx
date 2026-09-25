@@ -81,12 +81,12 @@ const FEATURE_METADATA_LIST: FeatureMetadata[] = [
   },
   {
     key: 'regulatoryRoadmap',
-    title: 'Regulatory Roadmap & Investment Model',
+    title: 'Enactment Roadmap & Investment Model',
     description:
-      'Quarterly multi-year implementation progression visualizer and compliance capital expenditure (CapEx / OpEx) forecasting engine.',
+      'Enactment Roadmap tab: quarterly multi-year implementation progression visualizer and compliance capital expenditure (CapEx / OpEx) forecasting engine. Turn off to hide the Enactment Roadmap from all users.',
     icon: <TrendingUp className="w-5 h-5 text-emerald-400" />,
     category: 'Core Analytics',
-    affectedViews: ['Navbar Roadmap Tab', 'RegulatoryRoadmap View', 'Quarterly Projections'],
+    affectedViews: ['Navbar "Enactment Roadmap" Tab', 'RegulatoryRoadmap View', 'Quarterly Projections'],
   },
   {
     key: 'controlsCrosswalk',

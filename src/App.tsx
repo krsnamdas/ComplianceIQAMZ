@@ -202,6 +202,16 @@ export default function App() {
   const [updates, setUpdates] = useState<RegulatoryUpdate[]>(MOCK_REGULATORY_UPDATES);
   const [trackedSources, setTrackedSources] = useState<ScrapedSource[]>(INITIAL_SCRAPER_SOURCES);
 
+  // Number of pins that actually resolve to a current regulation. The raw pin
+  // list can contain stale IDs (e.g. a regulation removed/renamed after the
+  // region-data refactor), so the Watchlist page counts resolvable pins only.
+  // The nav badge must use this same figure or it disagrees with the page
+  // (e.g. badge "5 tracked" vs. page "3 tracked").
+  const resolvedWatchlistCount = useMemo(() => {
+    const regIds = new Set(regulations.map((r) => r.id));
+    return watchlistPins.filter((p) => regIds.has(p.regulationId)).length;
+  }, [watchlistPins, regulations]);
+
   // Compute specialized notifications for pinned regulations
   const specializedNotifications = useMemo(() => {
     const rawNotifs = generateSpecializedNotifications(
@@ -470,7 +480,7 @@ export default function App() {
         onOpenAIChat={() => setIsAIChatOpen(true)}
         isScraping={isScraping}
         totalRegulations={regulations.length}
-        watchlistCount={watchlistPins.length}
+        watchlistCount={resolvedWatchlistCount}
         unreadNotificationsCount={unreadSpecializedCount}
         scraperStatus={scraperStatus}
       />
