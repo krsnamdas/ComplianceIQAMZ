@@ -301,11 +301,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         {
           id: 'sources',
           label: 'Tracked Official Sources',
-          badge: '51 Portals',
-          badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+          badge: 'ADMIN',
+          badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold',
           icon: Database,
           description: 'Directory of verified national gazettes, central bank portals, and crawler status across 24 jurisdictions.',
-          enabled: featureFlags.sourcesManager !== false,
+          // Admin-only: exposes scraper controls (Add Source, Run Scraper) and monitoring internals.
+          // Also respects the sourcesManager feature toggle.
+          enabled: isCurrentUserAdmin && featureFlags.sourcesManager !== false,
         },
         {
           id: 'admin',

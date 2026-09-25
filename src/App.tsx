@@ -127,8 +127,8 @@ export default function App() {
     if (activeTab === 'compare' && !featureFlags.regulationComparator) setActiveTab('overview');
     if (activeTab === 'sectors' && !featureFlags.sectorMatrix) setActiveTab('overview');
     if (activeTab === 'radar' && !featureFlags.regulatoryFeed) setActiveTab('overview');
-    if (activeTab === 'sources' && !featureFlags.sourcesManager) setActiveTab('overview');
-  }, [activeTab, featureFlags]);
+    if (activeTab === 'sources' && (!featureFlags.sourcesManager || !isCurrentUserAdmin)) setActiveTab('overview');
+  }, [activeTab, featureFlags, isCurrentUserAdmin]);
 
   const [selectedCountryId, setSelectedCountryId] = useState<string>('all');
   const [techFilter, setTechFilter] = useState<'all' | 'tech' | 'non_tech'>('all');
