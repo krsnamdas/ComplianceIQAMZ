@@ -43,7 +43,10 @@ const SECTOR_RISK_WEIGHTS: Record<string, { weight: number; label: string }> = {
   'Gaming & Entertainment': { weight: 1.05, label: 'Youth Protection & Content' },
 };
 
-export function calculateUrgencyScore(regulation: Regulation): UrgencyScoreResult {
+export function calculateUrgencyScore(
+  regulation: Regulation,
+  timelineEvents: typeof REGULATORY_TIMELINE_EVENTS = REGULATORY_TIMELINE_EVENTS
+): UrgencyScoreResult {
   // 1. Regulatory Sentiment Assessment
   let sentiment: RegulatorySentiment = 'Impactful';
   let sentimentScore = 80;
@@ -109,8 +112,8 @@ export function calculateUrgencyScore(regulation: Regulation): UrgencyScoreResul
   let daysRemaining = 45;
   let targetDeadline = '';
 
-  // Check if there is an official statutory event in REGULATORY_TIMELINE_EVENTS
-  const timelineEvent = REGULATORY_TIMELINE_EVENTS.find(
+  // Check if there is an official statutory event in the (file-backed) timeline
+  const timelineEvent = timelineEvents.find(
     (e) => e.regulationId === regulation.id || e.regulationCode.toLowerCase() === regulation.code.toLowerCase()
   );
 

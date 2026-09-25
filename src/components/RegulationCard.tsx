@@ -70,7 +70,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
   onRedlinePolicy,
 }) => {
   const { canManageWatchlist } = useRBAC();
-  const { getLinkAudit, addAuditLog, featureFlags } = useAdmin();
+  const { getLinkAudit, addAuditLog, featureFlags, timelineEvents } = useAdmin();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showUrgencyBreakdown, setShowUrgencyBreakdown] = useState(false);
@@ -157,7 +157,7 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
     });
   }, [regulation.sampleControls, minConfidenceFilter, aiAnalysis]);
 
-  const urgency = calculateUrgencyScore(regulation);
+  const urgency = calculateUrgencyScore(regulation, timelineEvents);
 
   const getUrgencyBadgeColor = (tier: string) => {
     switch (tier) {

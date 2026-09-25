@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { Regulation, SectorType } from '../types/regulatory';
 import { calculateUrgencyScore, UrgencyScoreResult } from '../utils/urgencyScore';
+import { useAdmin } from '../context/AdminContext';
 import {
   AlertTriangle,
   Clock,
@@ -32,6 +33,7 @@ export const ImpactHorizonChart: React.FC<ImpactHorizonChartProps> = ({
   pinnedIds = [],
   onSelectRegulation,
 }) => {
+  const { timelineEvents } = useAdmin();
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -41,14 +43,14 @@ export const ImpactHorizonChart: React.FC<ImpactHorizonChartProps> = ({
   const [scopeMode, setScopeMode] = useState<'all' | 'pinned'>(pinnedIds.length > 0 ? 'pinned' : 'all');
   const [hoveredPoint, setHoveredPoint] = useState<HorizonDataPoint | null>(null);
 
-  // Compute urgency scores for all eligible regulations
+  // Compute urgency scores for all eligible regulations (file-backed timeline)
   const dataPoints: HorizonDataPoint[] = useMemo(() => {
     return regulations.map((reg) => ({
       regulation: reg,
-      urgency: calculateUrgencyScore(reg),
+      urgency: calculateUrgencyScore(reg, timelineEvents),
       isPinned: pinnedIds.includes(reg.id),
     }));
-  }, [regulations, pinnedIds]);
+  }, [regulations, pinnedIds, timelineEvents]);
 
   // Filter based on controls
   const filteredPoints = useMemo(() => {
