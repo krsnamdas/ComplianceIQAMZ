@@ -153,7 +153,8 @@ export interface AuditLogEntry {
     | 'SYSTEM_CONFIG_UPDATED'
     | 'SUGGESTION_SUBMITTED'
     | 'SUGGESTION_ACCEPTED'
-    | 'SUGGESTION_REJECTED';
+    | 'SUGGESTION_REJECTED'
+    | 'DIGEST_UPDATE_EDITED';
   targetEntity: string;
   details: string;
 }

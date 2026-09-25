@@ -10,6 +10,7 @@ import { SystemBackupTab } from './SystemBackupTab';
 import { LinkIntegrityTab } from './LinkIntegrityTab';
 import { LinkSuggestionsQueueTab } from './LinkSuggestionsQueueTab';
 import { TimelineManagerTab } from './TimelineManagerTab';
+import { DigestFeedTab } from './DigestFeedTab';
 import { ComplianceIQLogo } from '../ComplianceIQLogo';
 import {
   ShieldAlert,
@@ -28,11 +29,13 @@ import {
   Globe2,
   Link2,
   CalendarClock,
+  BellRing,
 } from 'lucide-react';
 
 export type AdminSubTab =
   | 'countries'
   | 'regulations'
+  | 'digest'
   | 'timeline'
   | 'link_integrity'
   | 'link_suggestions'
@@ -64,6 +67,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
     quickLoginAs,
     linkSuggestions = [],
     regulationSuggestions = [],
+    digestUpdates = [],
   } = useAdmin();
 
   const pendingSuggestionsCount =
@@ -320,6 +324,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
           </button>
 
           <button
+            onClick={() => setActiveSubTab('digest')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'digest'
+                ? 'bg-rose-600 text-white shadow-sm ring-1 ring-rose-400/50'
+                : 'bg-slate-950/60 hover:bg-slate-800 text-rose-300 hover:text-white border border-rose-500/20'
+            }`}
+          >
+            <BellRing className="w-3.5 h-3.5 text-rose-400" />
+            <span>Digest Feed ({digestUpdates.length})</span>
+          </button>
+
+          <button
             onClick={() => setActiveSubTab('timeline')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'timeline'
@@ -426,6 +442,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onNavigateHome }) => {
       <div>
         {activeSubTab === 'countries' && <CountryManagementTab />}
         {activeSubTab === 'regulations' && <RegulationEditorTab />}
+        {activeSubTab === 'digest' && <DigestFeedTab />}
         {activeSubTab === 'timeline' && <TimelineManagerTab />}
         {activeSubTab === 'link_integrity' && <LinkIntegrityTab />}
         {activeSubTab === 'link_suggestions' && <LinkSuggestionsQueueTab />}

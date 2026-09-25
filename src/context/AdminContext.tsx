@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { Regulation, Country, TimelineEvent } from '../types/regulatory';
-import { MENAT_REGULATIONS, MENAT_COUNTRIES } from '../data/menatData';
+import { Regulation, Country, TimelineEvent, RegulatoryUpdate } from '../types/regulatory';
+import { MENAT_REGULATIONS, MENAT_COUNTRIES, MOCK_REGULATORY_UPDATES } from '../data/menatData';
 import { REGULATORY_TIMELINE_EVENTS } from '../data/regulatoryTimelineData';
 import {
   UserProfile,
@@ -372,6 +372,11 @@ interface AdminContextType {
   resetRegulationsToDefault: () => void;
   importRegulationsBackup: (newRegs: Regulation[]) => void;
 
+  // Regional Regulatory Digest feed (file-backed, admin-editable). Powers the
+  // "Regional Regulatory Digest" page and its "Official Gazette" source links.
+  digestUpdates: RegulatoryUpdate[];
+  updateDigestUpdate: (id: string, updates: Partial<RegulatoryUpdate>) => void;
+
   // Region benchmark "current date" anchor (configurable per region / deployment)
   benchmarkDate: string;
   updateBenchmarkDate: (date: string) => void;
@@ -612,6 +617,62 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cancelled = true;
     };
   }, []);
+
+  // 3b. Regional Regulatory Digest updates. Seeded from the in-code fallback,
+  // then hydrated from the server (file-backed source of truth at
+  // data/regions/<REGION>/digest-updates.json) so admin edits to the feed —
+  // including the "Official Gazette" source links — are always reflected.
+  const [digestUpdates, setDigestUpdates] = useState<RegulatoryUpdate[]>(MOCK_REGULATORY_UPDATES);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/digest/updates')
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data && Array.isArray(data.updates) && data.updates.length > 0) {
+          setDigestUpdates(data.updates);
+        }
+      })
+      .catch((e) => console.warn('[AdminContext] Could not hydrate digest updates from server; using in-code seed.', e));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Admin edit of a single digest update (e.g. correct a broken Official Gazette
+  // link). Optimistically updates local state, then persists to the region file
+  // via the server; on failure we log and re-hydrate to stay consistent.
+  const updateDigestUpdate = (id: string, updates: Partial<RegulatoryUpdate>) => {
+    setDigestUpdates((prev) => prev.map((u) => (u.id === id ? { ...u, ...updates, id } : u)));
+    fetch(`/api/digest/updates/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Server responded ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (data && data.update) {
+          setDigestUpdates((prev) => prev.map((u) => (u.id === id ? data.update : u)));
+        }
+      })
+      .catch((e) => {
+        console.error('[AdminContext] Failed to persist digest update; re-hydrating.', e);
+        fetch('/api/digest/updates')
+          .then((res) => res.json())
+          .then((d) => {
+            if (d && Array.isArray(d.updates)) setDigestUpdates(d.updates);
+          })
+          .catch(() => {});
+      });
+    addAuditLog(
+      'DIGEST_UPDATE_EDITED',
+      id,
+      `Edited digest update "${id}" (fields: ${Object.keys(updates).join(', ')})`
+    );
+  };
 
   // 3b. Countries State
   const [countriesRaw, setCountriesRaw] = useState<Country[]>(() => {
@@ -2045,6 +2106,9 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateRegulationLink,
         resetRegulationsToDefault,
         importRegulationsBackup,
+
+        digestUpdates,
+        updateDigestUpdate,
 
         benchmarkDate,
         updateBenchmarkDate,

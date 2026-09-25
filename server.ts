@@ -13,6 +13,7 @@ import {
   loadRegulations, saveRegulations,
   loadScraperSources, saveScraperSources,
   loadNewsSeed,
+  loadDigestUpdates, saveDigestUpdates,
   loadTimeline, saveTimeline,
   loadRoadmapMilestones, saveRoadmapMilestones,
   loadRegionObject, loadRegionJSON,
@@ -63,7 +64,19 @@ let scraperLogs: ScraperLog[] = [...INITIAL_SCRAPER_LOGS];
 // Scraper sources are loaded from the region JSON file (fallback to in-code seed).
 const _srcLoad = loadScraperSources<ScrapedSource>(INITIAL_SCRAPER_SOURCES);
 let currentSources: ScrapedSource[] = _srcLoad.data;
-let currentUpdates: RegulatoryUpdate[] = [...MOCK_REGULATORY_UPDATES];
+// Regional Regulatory Digest updates are loaded from the region JSON file
+// (data/regions/<REGION>/digest-updates.json), falling back to the in-code seed.
+const _updLoad = loadDigestUpdates<RegulatoryUpdate>(MOCK_REGULATORY_UPDATES);
+let currentUpdates: RegulatoryUpdate[] = _updLoad.data;
+
+/** Persist the current in-memory digest updates back to the region JSON file. */
+function persistDigestUpdates(): { ok: boolean; error?: string } {
+  const res = saveDigestUpdates<RegulatoryUpdate>(currentUpdates);
+  if (!res.ok) {
+    console.error(`[ComplianceIQ Data] Failed to persist digest updates: ${res.error}`);
+  }
+  return res;
+}
 let lastRunTime = new Date('2026-09-22T04:17:50Z').toISOString();
 let nextRunTime = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 let isScrapingActive = false;
@@ -1183,6 +1196,49 @@ async function startServer() {
       total: updates.length,
       updates,
     });
+  });
+
+  // API 7.0a: Regional Regulatory Digest — full feed (file-backed, admin-editable)
+  // Returns the complete, unfiltered set of digest updates so the client digest
+  // feed and the admin editor share a single source of truth (the region JSON file).
+  app.get('/api/digest/updates', (req: Request, res: Response) => {
+    res.json({ total: currentUpdates.length, updates: currentUpdates });
+  });
+
+  // API 7.0b: Update a single digest update (common admin action: fix sourceUrl / fields)
+  app.put('/api/digest/updates/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    const idx = currentUpdates.findIndex((u) => u.id === id);
+    if (idx === -1) {
+      return res.status(404).json({ error: `Digest update "${id}" not found.` });
+    }
+    const prev = currentUpdates[idx];
+    // Preserve the immutable id; merge the incoming partial over the existing record.
+    const updated = { ...prev, ...(req.body as Partial<RegulatoryUpdate>), id: prev.id } as RegulatoryUpdate;
+    const snapshot = [...currentUpdates];
+    currentUpdates[idx] = updated;
+    const persisted = persistDigestUpdates();
+    if (!persisted.ok) {
+      currentUpdates = snapshot; // roll back
+      return res.status(500).json({ error: 'Failed to persist digest update.', details: persisted.error });
+    }
+    return res.json({ success: true, update: updated });
+  });
+
+  // API 7.0c: Bulk replace the entire digest feed (import/restore)
+  app.put('/api/digest/updates', (req: Request, res: Response) => {
+    const incoming = req.body?.updates;
+    if (!Array.isArray(incoming)) {
+      return res.status(400).json({ error: 'Request body must include an "updates" array.' });
+    }
+    const snapshot = [...currentUpdates];
+    currentUpdates = incoming as RegulatoryUpdate[];
+    const persisted = persistDigestUpdates();
+    if (!persisted.ok) {
+      currentUpdates = snapshot; // roll back
+      return res.status(500).json({ error: 'Failed to persist digest updates.', details: persisted.error });
+    }
+    return res.json({ success: true, total: currentUpdates.length });
   });
 
   // API 7.1: Regulatory Watchlist Specialized Notifications

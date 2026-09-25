@@ -107,6 +107,14 @@ export function saveNewsSeed<T>(data: T[]) {
   return saveRegionJSON<T>('news-seed.json', data);
 }
 
+// --- Regional Regulatory Digest updates ---
+export function loadDigestUpdates<T>(fallback: T[]) {
+  return loadRegionJSON<T>('digest-updates.json', fallback);
+}
+export function saveDigestUpdates<T>(data: T[]) {
+  return saveRegionJSON<T>('digest-updates.json', data);
+}
+
 // --- Timeline events ---
 export function loadTimeline<T>(fallback: T[]) {
   return loadRegionJSON<T>('timeline.json', fallback);

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Country, SectorType, RegulatoryUpdate } from '../types/regulatory';
-import { MENAT_COUNTRIES, MOCK_REGULATORY_UPDATES } from '../data/menatData';
+import { MENAT_COUNTRIES } from '../data/menatData';
+import { useAdmin } from '../context/AdminContext';
 import {
   DigestSubscriptionPreferences,
   loadDigestPreferences,
@@ -43,6 +44,9 @@ export const RegionalRegulatoryDigest: React.FC<RegionalRegulatoryDigestProps> =
   onNavigateHome,
   onViewRegulation,
 }) => {
+  // File-backed digest feed (region JSON, admin-editable) from the admin context.
+  const { digestUpdates } = useAdmin();
+
   // Subscriptions State
   const [preferences, setPreferences] = useState<DigestSubscriptionPreferences>(() =>
     loadDigestPreferences()
@@ -63,8 +67,8 @@ export const RegionalRegulatoryDigest: React.FC<RegionalRegulatoryDigestProps> =
 
   // Compute filtered alerts
   const subscribedAlerts = useMemo(() => {
-    return getFilteredDigestAlerts(MOCK_REGULATORY_UPDATES, preferences);
-  }, [preferences]);
+    return getFilteredDigestAlerts(digestUpdates, preferences);
+  }, [digestUpdates, preferences]);
 
   // Secondary feed filter
   const displayedAlerts = useMemo(() => {
