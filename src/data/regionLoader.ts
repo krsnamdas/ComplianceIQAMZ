@@ -90,3 +90,68 @@ export function loadRegulations(fallback: Regulation[]): { data: Regulation[]; s
 export function saveRegulations(data: Regulation[]) {
   return saveRegionJSON<Regulation>('regulations.json', data);
 }
+
+// --- Scraper sources ---
+export function loadScraperSources<T>(fallback: T[]) {
+  return loadRegionJSON<T>('scraper-sources.json', fallback);
+}
+export function saveScraperSources<T>(data: T[]) {
+  return saveRegionJSON<T>('scraper-sources.json', data);
+}
+
+// --- News seed ---
+export function loadNewsSeed<T>(fallback: T[]) {
+  return loadRegionJSON<T>('news-seed.json', fallback);
+}
+export function saveNewsSeed<T>(data: T[]) {
+  return saveRegionJSON<T>('news-seed.json', data);
+}
+
+// --- Timeline events ---
+export function loadTimeline<T>(fallback: T[]) {
+  return loadRegionJSON<T>('timeline.json', fallback);
+}
+export function saveTimeline<T>(data: T[]) {
+  return saveRegionJSON<T>('timeline.json', data);
+}
+
+// --- Roadmap milestones ---
+export function loadRoadmapMilestones<T>(fallback: T[]) {
+  return loadRegionJSON<T>('roadmap-milestones.json', fallback);
+}
+export function saveRoadmapMilestones<T>(data: T[]) {
+  return saveRegionJSON<T>('roadmap-milestones.json', data);
+}
+
+/**
+ * Read a single JSON OBJECT (not array) region file, e.g. maturity.json which
+ * holds { sectors, matrix, countrySummaries }. Falls back to the provided
+ * object if missing/invalid.
+ */
+export function loadRegionObject<T extends object>(fileName: string, fallback: T): { data: T; source: 'file' | 'fallback'; path: string } {
+  const filePath = regionFilePath(fileName);
+  try {
+    if (fs.existsSync(filePath)) {
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return { data: parsed as T, source: 'file', path: filePath };
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[regionLoader] Failed to read object ${filePath}: ${err?.message}; using fallback.`);
+  }
+  return { data: fallback, source: 'fallback', path: filePath };
+}
+
+export function saveRegionObject<T extends object>(fileName: string, data: T): { ok: boolean; path: string; error?: string } {
+  const filePath = regionFilePath(fileName);
+  try {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const tmp = `${filePath}.tmp-${Date.now()}`;
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
+    fs.renameSync(tmp, filePath);
+    return { ok: true, path: filePath };
+  } catch (err: any) {
+    return { ok: false, path: filePath, error: err?.message || String(err) };
+  }
+}

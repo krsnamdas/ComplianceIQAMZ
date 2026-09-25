@@ -9,7 +9,15 @@ import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedroc
 import { MENAT_COUNTRIES, MENAT_REGULATIONS, MOCK_REGULATORY_UPDATES, INITIAL_SCRAPER_LOGS } from './src/data/menatData.ts';
 import { INITIAL_SCRAPER_SOURCES } from './src/data/scraperSourcesData.ts';
 import { RegulatoryUpdate, ScraperLog, ScraperStatus, ControlDetail, ScrapedSource, Regulation } from './src/types/regulatory.ts';
-import { loadRegulations, saveRegulations, ACTIVE_REGION } from './src/data/regionLoader.ts';
+import {
+  loadRegulations, saveRegulations,
+  loadScraperSources, saveScraperSources,
+  loadNewsSeed,
+  loadTimeline, saveTimeline,
+  loadRoadmapMilestones, saveRoadmapMilestones,
+  loadRegionObject, loadRegionJSON,
+  ACTIVE_REGION,
+} from './src/data/regionLoader.ts';
 
 // ---------------------------------------------------------------------------
 // Region-aware regulation store.
@@ -32,6 +40,14 @@ function persistRegulations(): { ok: boolean; error?: string } {
   }
   return res;
 }
+
+/** Persist the current in-memory scraper sources back to the region JSON file. */
+function persistScraperSources(): void {
+  const res = saveScraperSources<ScrapedSource>(currentSources);
+  if (!res.ok) {
+    console.error(`[ComplianceIQ Data] Failed to persist scraper sources: ${res.error}`);
+  }
+}
 import { generateComplianceMaturityMatrix, generateCountryMaturitySummaries, MATURITY_SECTORS } from './src/data/complianceMaturityData.ts';
 import { INITIAL_GROUNDED_NEWS } from './src/data/groundedNewsData.ts';
 import { GroundedNewsItem } from './src/types/news.ts';
@@ -43,7 +59,9 @@ const __dirname = path.dirname(__filename);
 
 // In-memory state for scraper, tracked sources, and dynamic updates
 let scraperLogs: ScraperLog[] = [...INITIAL_SCRAPER_LOGS];
-let currentSources: ScrapedSource[] = [...INITIAL_SCRAPER_SOURCES];
+// Scraper sources are loaded from the region JSON file (fallback to in-code seed).
+const _srcLoad = loadScraperSources<ScrapedSource>(INITIAL_SCRAPER_SOURCES);
+let currentSources: ScrapedSource[] = _srcLoad.data;
 let currentUpdates: RegulatoryUpdate[] = [...MOCK_REGULATORY_UPDATES];
 let lastRunTime = new Date('2026-09-22T04:17:50Z').toISOString();
 let nextRunTime = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
@@ -68,8 +86,33 @@ let serverFeatureFlags: Record<string, boolean> = {
   systemBroadcast: true,
 };
 
-// In-memory cache for live Google Search Grounded regulatory news feed
-let cachedGroundedNews: GroundedNewsItem[] = [...INITIAL_GROUNDED_NEWS];
+// In-memory cache for live regulatory news feed — seeded from region JSON file.
+const _newsLoad = loadNewsSeed<GroundedNewsItem>(INITIAL_GROUNDED_NEWS);
+let cachedGroundedNews: GroundedNewsItem[] = _newsLoad.data;
+
+// Maturity heatmap data — loaded from region maturity.json (snapshot of the
+// computed matrix/sectors/summaries), falling back to the in-code generators.
+interface MaturityData {
+  sectors: ReturnType<typeof generateComplianceMaturityMatrix> extends infer _ ? typeof MATURITY_SECTORS : never;
+  matrix: ReturnType<typeof generateComplianceMaturityMatrix>;
+  countrySummaries: ReturnType<typeof generateCountryMaturitySummaries>;
+}
+const _maturityFallback: MaturityData = {
+  sectors: MATURITY_SECTORS,
+  matrix: generateComplianceMaturityMatrix(),
+  countrySummaries: generateCountryMaturitySummaries(),
+};
+const _maturityLoad = loadRegionObject<MaturityData>('maturity.json', _maturityFallback);
+const MATURITY: MaturityData = _maturityLoad.data;
+
+// Timeline events & roadmap milestones/quarters — loaded from region files.
+// These were previously client-only imports; now also served via API so they
+// are file-backed and portable. Persist-on-write is added for admin editing.
+// The client still seeds from its in-code copy so there is no UI flash if a
+// file is temporarily absent.
+let TIMELINE_EVENTS: any[] = loadTimeline<any>([]).data;
+let ROADMAP_MS: any[] = loadRoadmapMilestones<any>([]).data;
+let ROADMAP_QUARTERS_DATA: any[] = loadRegionJSON<any>('roadmap-quarters.json', []).data;
 let lastGroundedFetchTime: string = new Date().toISOString();
 let lastGroundedQueries: string[] = [
   'MENAT regulatory compliance updates 2026',
@@ -804,6 +847,7 @@ async function startServer() {
     };
 
     currentSources.unshift(newSource);
+    persistScraperSources();
     res.status(201).json({ message: 'New source link added to scraper tracking list.', source: newSource });
   });
 
@@ -821,6 +865,7 @@ async function startServer() {
       id: currentSources[index].id,
     };
     currentSources[index] = updatedSource;
+    persistScraperSources();
     res.json({ message: 'Source updated successfully.', source: updatedSource });
   });
 
@@ -832,6 +877,7 @@ async function startServer() {
     if (currentSources.length === initialLen) {
       return res.status(404).json({ error: 'Source not found.' });
     }
+    persistScraperSources();
     res.json({ message: 'Source removed from tracking list.' });
   });
 
@@ -924,6 +970,9 @@ async function startServer() {
       }).catch(() => null);
     }
 
+    if (addedSources.length > 0) {
+      persistScraperSources();
+    }
     return res.status(201).json({
       success: true,
       message: `Regulation ${regulation.code} statutory URL(s) enrolled into weekly periodic scraping queue.`,
@@ -1251,10 +1300,10 @@ async function startServer() {
     res.send(csvLines.join('\n'));
   });
 
-  // API 9: Compliance Maturity Heatmap Data
+  // API 9: Compliance Maturity Heatmap Data (loaded from region maturity.json)
   app.get('/api/maturity/heatmap', (req: Request, res: Response) => {
     const { sector, region } = req.query;
-    let matrix = generateComplianceMaturityMatrix();
+    let matrix = [...MATURITY.matrix];
 
     if (sector && sector !== 'all') {
       matrix = matrix.filter((c) => c.sectorId === sector);
@@ -1264,14 +1313,102 @@ async function startServer() {
       matrix = matrix.filter((c) => c.region === region || c.macroRegion === region);
     }
 
-    const summaries = generateCountryMaturitySummaries();
-
     res.json({
       totalCells: matrix.length,
-      sectors: MATURITY_SECTORS,
+      sectors: MATURITY.sectors,
       matrix,
-      countrySummaries: summaries,
+      countrySummaries: MATURITY.countrySummaries,
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // API 9.1: Regulatory Timeline events (file-backed, region-aware)
+  // ---------------------------------------------------------------------------
+  app.get('/api/timeline', (req: Request, res: Response) => {
+    res.json({ total: TIMELINE_EVENTS.length, events: TIMELINE_EVENTS });
+  });
+
+  // Create a timeline event
+  app.post('/api/timeline', (req: Request, res: Response) => {
+    const incoming = req.body || {};
+    if (!incoming.title) {
+      return res.status(400).json({ error: 'title is required for a timeline event.' });
+    }
+    const id = (incoming.id && String(incoming.id).trim()) || `evt-${Date.now().toString(36)}`;
+    const event = { ...incoming, id };
+    const snapshot = [...TIMELINE_EVENTS];
+    TIMELINE_EVENTS = [event, ...TIMELINE_EVENTS];
+    const p = saveTimeline(TIMELINE_EVENTS);
+    if (!p.ok) { TIMELINE_EVENTS = snapshot; return res.status(500).json({ error: 'Failed to persist timeline event.', details: p.error }); }
+    return res.status(201).json({ success: true, event, total: TIMELINE_EVENTS.length });
+  });
+
+  // Update a timeline event
+  app.put('/api/timeline/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    const idx = TIMELINE_EVENTS.findIndex((e) => e.id === id);
+    if (idx === -1) return res.status(404).json({ error: `Timeline event "${id}" not found.` });
+    const snapshot = [...TIMELINE_EVENTS];
+    TIMELINE_EVENTS[idx] = { ...TIMELINE_EVENTS[idx], ...req.body, id };
+    const p = saveTimeline(TIMELINE_EVENTS);
+    if (!p.ok) { TIMELINE_EVENTS = snapshot; return res.status(500).json({ error: 'Failed to persist timeline update.', details: p.error }); }
+    return res.json({ success: true, event: TIMELINE_EVENTS[idx] });
+  });
+
+  // Delete a timeline event
+  app.delete('/api/timeline/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (!TIMELINE_EVENTS.some((e) => e.id === id)) return res.status(404).json({ error: `Timeline event "${id}" not found.` });
+    const snapshot = [...TIMELINE_EVENTS];
+    TIMELINE_EVENTS = TIMELINE_EVENTS.filter((e) => e.id !== id);
+    const p = saveTimeline(TIMELINE_EVENTS);
+    if (!p.ok) { TIMELINE_EVENTS = snapshot; return res.status(500).json({ error: 'Failed to persist timeline deletion.', details: p.error }); }
+    return res.json({ success: true, deletedId: id, total: TIMELINE_EVENTS.length });
+  });
+
+  // ---------------------------------------------------------------------------
+  // API 9.2: Regulatory Roadmap milestones + quarters (file-backed, region-aware)
+  // ---------------------------------------------------------------------------
+  app.get('/api/roadmap', (req: Request, res: Response) => {
+    res.json({ total: ROADMAP_MS.length, milestones: ROADMAP_MS, quarters: ROADMAP_QUARTERS_DATA });
+  });
+
+  // Create a roadmap milestone
+  app.post('/api/roadmap', (req: Request, res: Response) => {
+    const incoming = req.body || {};
+    if (!incoming.title) {
+      return res.status(400).json({ error: 'title is required for a roadmap milestone.' });
+    }
+    const id = (incoming.id && String(incoming.id).trim()) || `rm-${Date.now().toString(36)}`;
+    const ms = { ...incoming, id };
+    const snapshot = [...ROADMAP_MS];
+    ROADMAP_MS = [ms, ...ROADMAP_MS];
+    const p = saveRoadmapMilestones(ROADMAP_MS);
+    if (!p.ok) { ROADMAP_MS = snapshot; return res.status(500).json({ error: 'Failed to persist roadmap milestone.', details: p.error }); }
+    return res.status(201).json({ success: true, milestone: ms, total: ROADMAP_MS.length });
+  });
+
+  // Update a roadmap milestone
+  app.put('/api/roadmap/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    const idx = ROADMAP_MS.findIndex((m) => m.id === id);
+    if (idx === -1) return res.status(404).json({ error: `Roadmap milestone "${id}" not found.` });
+    const snapshot = [...ROADMAP_MS];
+    ROADMAP_MS[idx] = { ...ROADMAP_MS[idx], ...req.body, id };
+    const p = saveRoadmapMilestones(ROADMAP_MS);
+    if (!p.ok) { ROADMAP_MS = snapshot; return res.status(500).json({ error: 'Failed to persist roadmap update.', details: p.error }); }
+    return res.json({ success: true, milestone: ROADMAP_MS[idx] });
+  });
+
+  // Delete a roadmap milestone
+  app.delete('/api/roadmap/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (!ROADMAP_MS.some((m) => m.id === id)) return res.status(404).json({ error: `Roadmap milestone "${id}" not found.` });
+    const snapshot = [...ROADMAP_MS];
+    ROADMAP_MS = ROADMAP_MS.filter((m) => m.id !== id);
+    const p = saveRoadmapMilestones(ROADMAP_MS);
+    if (!p.ok) { ROADMAP_MS = snapshot; return res.status(500).json({ error: 'Failed to persist roadmap deletion.', details: p.error }); }
+    return res.json({ success: true, deletedId: id, total: ROADMAP_MS.length });
   });
 
   // ============================================================================

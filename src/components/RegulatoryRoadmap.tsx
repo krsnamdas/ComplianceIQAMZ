@@ -107,6 +107,34 @@ export const RegulatoryRoadmap: React.FC<RegulatoryRoadmapProps> = ({
   // Active chart view toggle: CapEx vs OpEx vs Category
   const [chartMetric, setChartMetric] = useState<'capex_opex' | 'categories'>('capex_opex');
 
+  // Roadmap data.
+  // Seeded synchronously from the in-code copy (identical first paint, no flash),
+  // then hydrated from the region file-backed API (/api/roadmap) so admin/region
+  // edits are reflected.
+  const [milestonesData, setMilestonesData] = useState<RoadmapMilestone[]>(ROADMAP_MILESTONES);
+  const [quartersData, setQuartersData] = useState(ROADMAP_QUARTERS);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/roadmap')
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data && Array.isArray(data.milestones) && data.milestones.length > 0) {
+          setMilestonesData(data.milestones);
+        }
+        if (data && Array.isArray(data.quarters) && data.quarters.length > 0) {
+          setQuartersData(data.quarters);
+        }
+      })
+      .catch(() => {
+        /* keep synchronous seed on error — no UI disruption */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Budget status overrides persisted in localStorage
   const [budgetStatuses, setBudgetStatuses] = useState<Record<string, BudgetApprovalStatus>>(() => {
     try {
@@ -134,7 +162,7 @@ export const RegulatoryRoadmap: React.FC<RegulatoryRoadmapProps> = ({
 
   // Filtered milestones
   const filteredMilestones = useMemo(() => {
-    return ROADMAP_MILESTONES.filter((m) => {
+    return milestonesData.filter((m) => {
       // Quarter filter
       if (filters.quarter === 'next4') {
         const next4 = ['2026-Q4', '2027-Q1', '2027-Q2', '2027-Q3'];
@@ -183,7 +211,7 @@ export const RegulatoryRoadmap: React.FC<RegulatoryRoadmapProps> = ({
 
       return true;
     });
-  }, [filters]);
+  }, [filters, milestonesData]);
 
   // Quarterly progression summaries computed with scale multiplier
   const quarterlySummaries = useMemo(() => {
@@ -489,7 +517,7 @@ export const RegulatoryRoadmap: React.FC<RegulatoryRoadmapProps> = ({
             <span className="text-xs font-normal text-slate-400">Person-Months</span>
           </div>
           <div className="text-[11px] text-slate-400 flex items-center space-x-1.5">
-            <span>Avg ~{Number((metrics.totalFTE / (ROADMAP_QUARTERS.length || 1)).toFixed(1))} FTE / Qtr</span>
+            <span>Avg ~{Number((metrics.totalFTE / (quartersData.length || 1)).toFixed(1))} FTE / Qtr</span>
             <span>•</span>
             <span className="text-cyan-400">DevSecOps & GRC</span>
           </div>
@@ -766,7 +794,7 @@ export const RegulatoryRoadmap: React.FC<RegulatoryRoadmapProps> = ({
           <div className="flex items-center space-x-2 text-xs text-slate-400 shrink-0">
             <span>
               Showing <strong className="text-white">{filteredMilestones.length}</strong> of{' '}
-              {ROADMAP_MILESTONES.length} milestones
+              {milestonesData.length} milestones
             </span>
             {(filters.countryId !== 'all' ||
               filters.sector !== 'all' ||

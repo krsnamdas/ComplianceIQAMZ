@@ -72,9 +72,33 @@ export const ComplianceMaturityHeatmap: React.FC<ComplianceMaturityHeatmapProps>
   const [aiSources, setAiSources] = useState<{ title: string; url: string }[]>([]);
   const [showAiModal, setShowAiModal] = useState(false);
 
-  // Master data
-  const matrixData = useMemo(() => generateComplianceMaturityMatrix(), []);
-  const countrySummaries = useMemo(() => generateCountryMaturitySummaries(), []);
+  // Master data.
+  // Seeded synchronously from the in-code generators so the first paint is
+  // identical and there is no loading flash, then hydrated from the region
+  // file-backed API (/api/maturity/heatmap) so admin/region edits are reflected.
+  const [matrixData, setMatrixData] = useState<HeatmapCellData[]>(() => generateComplianceMaturityMatrix());
+  const [countrySummaries, setCountrySummaries] = useState<CountryMaturitySummary[]>(() => generateCountryMaturitySummaries());
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/maturity/heatmap')
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data && Array.isArray(data.matrix) && data.matrix.length > 0) {
+          setMatrixData(data.matrix);
+        }
+        if (data && Array.isArray(data.countrySummaries) && data.countrySummaries.length > 0) {
+          setCountrySummaries(data.countrySummaries);
+        }
+      })
+      .catch(() => {
+        /* keep the synchronous seed on error — no UI disruption */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Filtered and sorted countries list
   const displayCountries = useMemo(() => {

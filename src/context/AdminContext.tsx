@@ -732,6 +732,26 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [timelineEvents]);
 
+  // Hydrate timeline events from the region file-backed API (source of truth).
+  // Seeded synchronously above from the in-code copy so there is no UI flash.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/timeline')
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data && Array.isArray(data.events) && data.events.length > 0) {
+          setTimelineEvents(data.events);
+        }
+      })
+      .catch(() => {
+        /* keep the synchronous seed on error — no UI disruption */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // 9. Atomic Staged Pending Edits State (Deadlines & Regulatory Statuses)
   const [pendingTimelineEdits, setPendingTimelineEdits] = useState<Record<string, Partial<TimelineEvent>>>({});
   const [pendingRegulationEdits, setPendingRegulationEdits] = useState<Record<string, Partial<Regulation>>>({});
