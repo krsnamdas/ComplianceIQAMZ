@@ -65,7 +65,12 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
     applyPendingEdits,
     discardPendingEdits,
     regulations,
+    benchmarkDate,
   } = useAdmin();
+
+  // Configurable benchmark "current date" anchor (falls back to module default).
+  const CURRENT_DATE_STR_LOCAL = benchmarkDate || CURRENT_DATE_STR;
+  const CURRENT_TIMESTAMP_LOCAL = new Date(CURRENT_DATE_STR_LOCAL).getTime();
 
   const activeTimelineEvents = useMemo(() => {
     return effectiveTimelineEvents && effectiveTimelineEvents.length > 0
@@ -127,7 +132,7 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
         if (evtDeadline < new Date('2026-01-01').getTime()) return false;
       } else if (horizon === 'historical') {
         // Must have deadline before current date
-        if (evtDeadline > CURRENT_TIMESTAMP) return false;
+        if (evtDeadline > CURRENT_TIMESTAMP_LOCAL) return false;
       }
 
       // Country filter
@@ -176,7 +181,7 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
   // Calculate days remaining helper
   const getDaysRemaining = (deadlineStr: string) => {
     const deadlineTime = new Date(deadlineStr).getTime();
-    const diffMs = deadlineTime - CURRENT_TIMESTAMP;
+    const diffMs = deadlineTime - CURRENT_TIMESTAMP_LOCAL;
     const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
     return diffDays;
   };
@@ -236,7 +241,7 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `MENAT_Regulatory_Deadlines_${CURRENT_DATE_STR}.ics`);
+    link.setAttribute('download', `MENAT_Regulatory_Deadlines_${CURRENT_DATE_STR_LOCAL}.ics`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -279,7 +284,7 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `MENAT_Regulatory_Timeline_${CURRENT_DATE_STR}.csv`);
+    link.setAttribute('download', `MENAT_Regulatory_Timeline_${CURRENT_DATE_STR_LOCAL}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -373,9 +378,9 @@ export const RegulatoryTimeline: React.FC<RegulatoryTimelineProps> = ({
   // Current date position percentage on Gantt timeline
   const todayPositionPct = useMemo(() => {
     const { start, end } = timeBoundaries;
-    if (CURRENT_TIMESTAMP < start) return 0;
-    if (CURRENT_TIMESTAMP > end) return 100;
-    return ((CURRENT_TIMESTAMP - start) / (end - start)) * 100;
+    if (CURRENT_TIMESTAMP_LOCAL < start) return 0;
+    if (CURRENT_TIMESTAMP_LOCAL > end) return 100;
+    return ((CURRENT_TIMESTAMP_LOCAL - start) / (end - start)) * 100;
   }, [timeBoundaries]);
 
   // Helper to calculate event left & width on Gantt bar

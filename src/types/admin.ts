@@ -112,7 +112,8 @@ export interface AuditLogEntry {
     | 'TIMELINE_EVENT_UPDATED'
     | 'TIMELINE_EVENT_DELETED'
     | 'TIMELINE_EVENTS_RESET'
-    | 'TIMELINE_BATCH_APPLIED';
+    | 'TIMELINE_BATCH_APPLIED'
+    | 'SYSTEM_CONFIG_UPDATED';
   targetEntity: string;
   details: string;
 }

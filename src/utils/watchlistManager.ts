@@ -151,7 +151,8 @@ export function generateSpecializedNotifications(
   regulations: Regulation[],
   updates: RegulatoryUpdate[],
   customNotifications: WatchlistNotification[] = [],
-  timelineEvents: typeof REGULATORY_TIMELINE_EVENTS = REGULATORY_TIMELINE_EVENTS
+  timelineEvents: typeof REGULATORY_TIMELINE_EVENTS = REGULATORY_TIMELINE_EVENTS,
+  benchmarkDate: string = '2026-09-22'
 ): WatchlistNotification[] {
   const pinnedIds = new Set(pins.map((p) => p.regulationId));
   const pinMap = new Map<string, WatchlistPin>();
@@ -160,8 +161,8 @@ export function generateSpecializedNotifications(
   const pinnedRegulations = regulations.filter((r) => pinnedIds.has(r.id));
   const generated: WatchlistNotification[] = [];
 
-  // Current benchmark date: September 22, 2026
-  const CURRENT_DATE = new Date('2026-09-22T00:00:00Z');
+  // Benchmark 'current date' anchor (configurable per region via admin panel).
+  const CURRENT_DATE = new Date(`${benchmarkDate}T00:00:00Z`);
 
   // 1. Cross-reference with (file-backed) Timeline Events for Pinned Regulations
   timelineEvents.forEach((evt) => {

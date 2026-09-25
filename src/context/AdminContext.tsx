@@ -369,6 +369,10 @@ interface AdminContextType {
   resetRegulationsToDefault: () => void;
   importRegulationsBackup: (newRegs: Regulation[]) => void;
 
+  // Region benchmark "current date" anchor (configurable per region / deployment)
+  benchmarkDate: string;
+  updateBenchmarkDate: (date: string) => void;
+
   // Timeline Events & Statutory Deadlines Manager
   timelineEvents: TimelineEvent[];
   effectiveTimelineEvents: TimelineEvent[];
@@ -751,6 +755,44 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cancelled = true;
     };
   }, []);
+
+  // Region benchmark "current date" anchor. Defaults to the historical benchmark
+  // (2026-09-22) so behaviour is unchanged; hydrated from /api/config so a
+  // deployment (e.g. APAC) can set it to its own go-live date via the admin panel.
+  const [benchmarkDate, setBenchmarkDate] = useState<string>('2026-09-22');
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/config')
+      .then((res) => res.json())
+      .then((cfg) => {
+        if (cancelled) return;
+        if (cfg && typeof cfg.benchmarkDate === 'string') {
+          setBenchmarkDate(cfg.benchmarkDate);
+        }
+      })
+      .catch(() => {
+        /* keep default on error */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const updateBenchmarkDate = (date: string) => {
+    setBenchmarkDate(date);
+    fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ benchmarkDate: date }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.success) {
+          addAuditLog('SYSTEM_CONFIG_UPDATED', 'Benchmark Date', `Updated the platform benchmark "current date" to ${date}.`);
+        }
+      })
+      .catch((e) => console.warn('[AdminContext] Could not persist benchmark date:', e));
+  };
 
   // 9. Atomic Staged Pending Edits State (Deadlines & Regulatory Statuses)
   const [pendingTimelineEdits, setPendingTimelineEdits] = useState<Record<string, Partial<TimelineEvent>>>({});
@@ -1871,6 +1913,9 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateRegulationLink,
         resetRegulationsToDefault,
         importRegulationsBackup,
+
+        benchmarkDate,
+        updateBenchmarkDate,
 
         timelineEvents,
         effectiveTimelineEvents,

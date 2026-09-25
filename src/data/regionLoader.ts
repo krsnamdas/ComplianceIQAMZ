@@ -155,3 +155,19 @@ export function saveRegionObject<T extends object>(fileName: string, data: T): {
     return { ok: false, path: filePath, error: err?.message || String(err) };
   }
 }
+
+// --- Region config (benchmark date + region metadata) ---
+export interface RegionConfig {
+  regionId: string;
+  regionLabel: string;
+  /** The 'current date' anchor (YYYY-MM-DD) for deadline / urgency / watchlist calculations. */
+  benchmarkDate: string;
+  notes?: string;
+}
+
+export function loadRegionConfig(fallback: RegionConfig) {
+  return loadRegionObject<RegionConfig>('region.config.json', fallback);
+}
+export function saveRegionConfig(data: RegionConfig) {
+  return saveRegionObject<RegionConfig>('region.config.json', data);
+}

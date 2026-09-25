@@ -80,7 +80,12 @@ export const TimelineManagerTab: React.FC = () => {
     deleteTimelineEvent,
     resetTimelineEventsToDefault,
     countries,
+    benchmarkDate,
+    updateBenchmarkDate,
   } = useAdmin();
+
+  // Configurable benchmark "current date" anchor (falls back to module default).
+  const BENCHMARK_TIME_LOCAL = new Date(benchmarkDate || BENCHMARK_DATE).getTime();
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -144,13 +149,13 @@ export const TimelineManagerTab: React.FC = () => {
   const criticalCount = effectiveTimelineEvents.filter((e) => e.urgency === 'Critical').length;
   const imminentCount = effectiveTimelineEvents.filter((e) => {
     const d = new Date(e.deadlineDate).getTime();
-    const diffDays = Math.ceil((d - BENCHMARK_TIME) / (1000 * 60 * 60 * 24));
+    const diffDays = Math.ceil((d - BENCHMARK_TIME_LOCAL) / (1000 * 60 * 60 * 24));
     return diffDays > 0 && diffDays <= 90;
   }).length;
 
   // Helpers
   const getDaysRemaining = (deadlineStr: string) => {
-    const diffMs = new Date(deadlineStr).getTime() - BENCHMARK_TIME;
+    const diffMs = new Date(deadlineStr).getTime() - BENCHMARK_TIME_LOCAL;
     return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   };
 
@@ -342,6 +347,37 @@ export const TimelineManagerTab: React.FC = () => {
             <Plus className="w-4 h-4" />
             <span>Add Statutory Deadline</span>
           </button>
+        </div>
+      </div>
+
+      {/* Benchmark "Current Date" Anchor — configurable per region / deployment */}
+      <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-start space-x-2.5">
+          <CalendarClock className="w-4 h-4 text-cyan-400 mt-0.5 shrink-0" />
+          <div>
+            <h4 className="text-xs font-bold text-white">Platform Benchmark Date (&ldquo;Today&rdquo; Anchor)</h4>
+            <p className="text-[11px] text-slate-400 mt-0.5 max-w-2xl leading-relaxed">
+              All deadline countdowns, urgency scores, and watchlist alerts are calculated relative to this date.
+              Set it to your deployment go-live date when launching a new region.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2 shrink-0">
+          <input
+            type="date"
+            value={benchmarkDate}
+            onChange={(e) => {
+              if (e.target.value) {
+                updateBenchmarkDate(e.target.value);
+                showToast(`Benchmark date updated to ${e.target.value}. Deadline calculations refreshed.`);
+              }
+            }}
+            className="bg-slate-950 border border-slate-700 text-slate-100 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono cursor-pointer"
+            title="Change the benchmark 'current date' used for all deadline calculations"
+          />
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+            Region Anchor
+          </span>
         </div>
       </div>
 

@@ -51,7 +51,7 @@ import { Search, Filter, Shield, Globe2, BookOpen, Layers, CheckCircle2, AlertCi
 
 export default function App() {
   const { canManageWatchlist, canTriggerScraper, triggerRestrictedAction } = useRBAC();
-  const { currentUser, isCurrentUserAdmin, regulations, countries, featureFlags, isAuthenticated, addAuditLog, timelineEvents } = useAdmin();
+  const { currentUser, isCurrentUserAdmin, regulations, countries, featureFlags, isAuthenticated, addAuditLog, timelineEvents, benchmarkDate } = useAdmin();
 
   const [activeTab, setActiveTab] = useState<NavigationTab>('overview');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -209,13 +209,14 @@ export default function App() {
       regulations,
       updates,
       customNotifications,
-      timelineEvents
+      timelineEvents,
+      benchmarkDate
     );
     return rawNotifs.map((n) => ({
       ...n,
       read: readNotificationIds.has(n.id) || n.read,
     }));
-  }, [watchlistPins, regulations, updates, customNotifications, readNotificationIds, timelineEvents]);
+  }, [watchlistPins, regulations, updates, customNotifications, readNotificationIds, timelineEvents, benchmarkDate]);
 
   const unreadSpecializedCount = useMemo(
     () => specializedNotifications.filter((n) => !n.read).length,

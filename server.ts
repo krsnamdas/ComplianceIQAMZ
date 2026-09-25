@@ -16,6 +16,7 @@ import {
   loadTimeline, saveTimeline,
   loadRoadmapMilestones, saveRoadmapMilestones,
   loadRegionObject, loadRegionJSON,
+  loadRegionConfig, saveRegionConfig, RegionConfig,
   ACTIVE_REGION,
 } from './src/data/regionLoader.ts';
 
@@ -113,6 +114,14 @@ const MATURITY: MaturityData = _maturityLoad.data;
 let TIMELINE_EVENTS: any[] = loadTimeline<any>([]).data;
 let ROADMAP_MS: any[] = loadRoadmapMilestones<any>([]).data;
 let ROADMAP_QUARTERS_DATA: any[] = loadRegionJSON<any>('roadmap-quarters.json', []).data;
+
+// Region config (benchmark 'current date' anchor + region metadata).
+const _configFallback: RegionConfig = {
+  regionId: ACTIVE_REGION,
+  regionLabel: 'Middle East, North Africa & Türkiye',
+  benchmarkDate: '2026-09-22',
+};
+let REGION_CONFIG: RegionConfig = loadRegionConfig(_configFallback).data;
 let lastGroundedFetchTime: string = new Date().toISOString();
 let lastGroundedQueries: string[] = [
   'MENAT regulatory compliance updates 2026',
@@ -565,6 +574,34 @@ async function startServer() {
       jurisdictionsCount: 24,
       frameworks: ['NIST CSF 2.0', 'ISO/IEC 27001:2022', 'CSA CCM v4'],
     });
+  });
+
+  // API 1.4: Region configuration (benchmark 'current date' + region metadata)
+  app.get('/api/config', (req: Request, res: Response) => {
+    res.json(REGION_CONFIG);
+  });
+
+  app.put('/api/config', (req: Request, res: Response) => {
+    const { benchmarkDate, regionLabel, notes } = req.body || {};
+    // Validate benchmarkDate format if provided (YYYY-MM-DD)
+    if (benchmarkDate !== undefined) {
+      if (typeof benchmarkDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(benchmarkDate) || isNaN(new Date(benchmarkDate).getTime())) {
+        return res.status(400).json({ error: 'benchmarkDate must be a valid date in YYYY-MM-DD format.' });
+      }
+    }
+    const snapshot = { ...REGION_CONFIG };
+    REGION_CONFIG = {
+      ...REGION_CONFIG,
+      ...(benchmarkDate !== undefined ? { benchmarkDate } : {}),
+      ...(regionLabel !== undefined ? { regionLabel } : {}),
+      ...(notes !== undefined ? { notes } : {}),
+    };
+    const p = saveRegionConfig(REGION_CONFIG);
+    if (!p.ok) {
+      REGION_CONFIG = snapshot; // roll back
+      return res.status(500).json({ error: 'Failed to persist region config.', details: p.error });
+    }
+    return res.json({ success: true, config: REGION_CONFIG });
   });
 
   // API 1.5: Server-Side Feature Flags (Enabled/Disabled from backend)
