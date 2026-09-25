@@ -8,7 +8,30 @@ import { createServer as createViteServer } from 'vite';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { MENAT_COUNTRIES, MENAT_REGULATIONS, MOCK_REGULATORY_UPDATES, INITIAL_SCRAPER_LOGS } from './src/data/menatData.ts';
 import { INITIAL_SCRAPER_SOURCES } from './src/data/scraperSourcesData.ts';
-import { RegulatoryUpdate, ScraperLog, ScraperStatus, ControlDetail, ScrapedSource } from './src/types/regulatory.ts';
+import { RegulatoryUpdate, ScraperLog, ScraperStatus, ControlDetail, ScrapedSource, Regulation } from './src/types/regulatory.ts';
+import { loadRegulations, saveRegulations, ACTIVE_REGION } from './src/data/regionLoader.ts';
+
+// ---------------------------------------------------------------------------
+// Region-aware regulation store.
+// Loaded from data/regions/<REGION>/regulations.json at startup, falling back
+// to the in-code MENAT_REGULATIONS array if the file is missing. This is the
+// single mutable source the API reads from and writes to; admin add/amend/
+// delete operations persist back to the JSON file (no code edits needed).
+// ---------------------------------------------------------------------------
+const _regLoad = loadRegulations(MENAT_REGULATIONS);
+let REGULATIONS: Regulation[] = _regLoad.data;
+console.log(
+  `[ComplianceIQ Data] Region "${ACTIVE_REGION}": loaded ${REGULATIONS.length} regulations from ${_regLoad.source} (${_regLoad.path})`
+);
+
+/** Persist the current in-memory regulations array back to the region JSON file. */
+function persistRegulations(): { ok: boolean; error?: string } {
+  const res = saveRegulations(REGULATIONS);
+  if (!res.ok) {
+    console.error(`[ComplianceIQ Data] Failed to persist regulations: ${res.error}`);
+  }
+  return res;
+}
 import { generateComplianceMaturityMatrix, generateCountryMaturitySummaries, MATURITY_SECTORS } from './src/data/complianceMaturityData.ts';
 import { INITIAL_GROUNDED_NEWS } from './src/data/groundedNewsData.ts';
 import { GroundedNewsItem } from './src/types/news.ts';
@@ -310,7 +333,7 @@ async function executeLinkReachabilityAudit(): Promise<{
     isPdf: boolean;
   }> = [];
 
-  for (const reg of MENAT_REGULATIONS) {
+  for (const reg of REGULATIONS) {
     if (reg.officialUrl) {
       items.push({
         regulationId: reg.id,
@@ -550,7 +573,7 @@ async function startServer() {
   app.get('/api/regulations', (req: Request, res: Response) => {
     const { country, category, isTech, sector, search } = req.query;
 
-    let filtered = [...MENAT_REGULATIONS];
+    let filtered = [...REGULATIONS];
 
     if (country && country !== 'all') {
       filtered = filtered.filter((r) => r.countryId.toLowerCase() === String(country).toLowerCase());
@@ -586,13 +609,102 @@ async function startServer() {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // API 3.x: Regulation write operations (file-backed, region-aware)
+  // These persist changes to data/regions/<REGION>/regulations.json so admins
+  // can add / amend / delete regulations and update links WITHOUT code edits.
+  // ---------------------------------------------------------------------------
+
+  // Create a new regulation
+  app.post('/api/regulations', (req: Request, res: Response) => {
+    const incoming = req.body as Partial<Regulation>;
+    if (!incoming || !incoming.name || !incoming.countryId || !incoming.code) {
+      return res.status(400).json({ error: 'name, code, and countryId are required to create a regulation.' });
+    }
+
+    // Generate an id if not supplied; ensure uniqueness
+    let newId = (incoming.id && String(incoming.id).trim()) ||
+      `${incoming.countryId}-${String(incoming.code).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`.slice(0, 60);
+    if (REGULATIONS.some((r) => r.id === newId)) {
+      newId = `${newId}-${Date.now().toString(36)}`;
+    }
+
+    const newReg = { ...incoming, id: newId } as Regulation;
+    REGULATIONS = [newReg, ...REGULATIONS];
+    const persisted = persistRegulations();
+    if (!persisted.ok) {
+      // roll back in-memory change if the file write failed
+      REGULATIONS = REGULATIONS.filter((r) => r.id !== newId);
+      return res.status(500).json({ error: 'Failed to persist new regulation.', details: persisted.error });
+    }
+    return res.status(201).json({ success: true, regulation: newReg, total: REGULATIONS.length });
+  });
+
+  // Update (amend) an existing regulation — full or partial
+  app.put('/api/regulations/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    const idx = REGULATIONS.findIndex((r) => r.id === id);
+    if (idx === -1) {
+      return res.status(404).json({ error: `Regulation "${id}" not found.` });
+    }
+    const prev = REGULATIONS[idx];
+    const updated = { ...prev, ...(req.body as Partial<Regulation>), id: prev.id } as Regulation;
+    const snapshot = [...REGULATIONS];
+    REGULATIONS[idx] = updated;
+    const persisted = persistRegulations();
+    if (!persisted.ok) {
+      REGULATIONS = snapshot; // roll back
+      return res.status(500).json({ error: 'Failed to persist regulation update.', details: persisted.error });
+    }
+    return res.json({ success: true, regulation: updated });
+  });
+
+  // Patch just the official/document links of a regulation (common admin action)
+  app.patch('/api/regulations/:id/link', (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { officialUrl, documentPdfUrl } = req.body || {};
+    const idx = REGULATIONS.findIndex((r) => r.id === id);
+    if (idx === -1) {
+      return res.status(404).json({ error: `Regulation "${id}" not found.` });
+    }
+    const snapshot = [...REGULATIONS];
+    REGULATIONS[idx] = {
+      ...REGULATIONS[idx],
+      ...(officialUrl !== undefined ? { officialUrl } : {}),
+      ...(documentPdfUrl !== undefined ? { documentPdfUrl } : {}),
+    };
+    const persisted = persistRegulations();
+    if (!persisted.ok) {
+      REGULATIONS = snapshot;
+      return res.status(500).json({ error: 'Failed to persist link update.', details: persisted.error });
+    }
+    return res.json({ success: true, regulation: REGULATIONS[idx] });
+  });
+
+  // Delete a regulation
+  app.delete('/api/regulations/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    const exists = REGULATIONS.some((r) => r.id === id);
+    if (!exists) {
+      return res.status(404).json({ error: `Regulation "${id}" not found.` });
+    }
+    const snapshot = [...REGULATIONS];
+    REGULATIONS = REGULATIONS.filter((r) => r.id !== id);
+    const persisted = persistRegulations();
+    if (!persisted.ok) {
+      REGULATIONS = snapshot;
+      return res.status(500).json({ error: 'Failed to persist deletion.', details: persisted.error });
+    }
+    return res.json({ success: true, deletedId: id, total: REGULATIONS.length });
+  });
+
   // API 4: Controls Crosswalk with Global Standard Mappings
   app.get('/api/controls', (req: Request, res: Response) => {
     const { country, standard, sector, query } = req.query;
 
     let allControls: (ControlDetail & { regulationCode: string; regulationName: string; countryId: string; authority: string })[] = [];
 
-    for (const reg of MENAT_REGULATIONS) {
+    for (const reg of REGULATIONS) {
       if (country && country !== 'all' && reg.countryId !== country) continue;
 
       for (const ctrl of reg.sampleControls) {
@@ -995,7 +1107,7 @@ async function startServer() {
     }
 
     const ids = String(regulationIds).split(',').map((id) => id.trim()).filter(Boolean);
-    const pinnedRegs = MENAT_REGULATIONS.filter((r) => ids.includes(r.id) || ids.includes(r.code));
+    const pinnedRegs = REGULATIONS.filter((r) => ids.includes(r.id) || ids.includes(r.code));
 
     const matchedNotifications: any[] = [];
 
@@ -1040,7 +1152,7 @@ async function startServer() {
 
     const exportRows: any[] = [];
 
-    for (const reg of MENAT_REGULATIONS) {
+    for (const reg of REGULATIONS) {
       if (country !== 'all' && reg.countryId !== country) continue;
 
       for (const ctrl of reg.sampleControls) {
@@ -1819,7 +1931,7 @@ Analyze the exact regulatory impact on the "${sector}" sector. Return ONLY the J
         return res.json(requirementsAnalysisCache.get(regId));
       }
 
-      const targetReg = MENAT_REGULATIONS.find(
+      const targetReg = REGULATIONS.find(
         (r) => r.id === regId || r.code.toLowerCase() === String(regId).toLowerCase()
       );
       const rawReqs =
@@ -1926,7 +2038,7 @@ Clause Reference: ${r.clauseReference || 'General Clause'}`
     if (requirementsAnalysisCache.has(regulationId)) {
       return res.json(requirementsAnalysisCache.get(regulationId));
     }
-    const targetReg = MENAT_REGULATIONS.find(
+    const targetReg = REGULATIONS.find(
       (r) => r.id === regulationId || r.code.toLowerCase() === regulationId.toLowerCase()
     );
     if (!targetReg) {
@@ -2201,7 +2313,7 @@ Return ONLY valid JSON matching this schema exactly:
         return res.status(400).json({ error: 'regulationId is required to benchmark the draft policy.' });
       }
 
-      const regulation = MENAT_REGULATIONS.find((r) => r.id === regulationId);
+      const regulation = REGULATIONS.find((r) => r.id === regulationId);
       if (!regulation) {
         return res.status(404).json({ error: `Regulation with ID "${regulationId}" not found in database.` });
       }

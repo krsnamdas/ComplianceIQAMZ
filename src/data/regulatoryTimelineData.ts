@@ -116,7 +116,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-morocco-0908-consultation',
-    regulationId: 'morocco-0908',
+    regulationId: 'morocco-cndp-0908',
     regulationCode: 'Morocco Law 09-08 Reform',
     title: 'Public Consultation Closes on Modernization of Personal Data Protection Law (Law No. 09-08)',
     authority: 'Commission Nationale de contrôle de la protection des Données à caractère Personnel (CNDP)',
@@ -151,7 +151,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-jordan-pdpl-grace-expiry',
-    regulationId: 'jo-pdpl-24',
+    regulationId: 'jordan-pdpl-24',
     regulationCode: 'Jordan PDPL Law 24/2023',
     title: 'Personal Data Protection Law (Law No. 24 of 2023): Final 1-Year Grace Period Expiry',
     authority: 'Ministry of Digital Economy and Entrepreneurship (MoDEE) & Data Protection Unit',
@@ -224,7 +224,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-ksa-sama-open-banking-deadline',
-    regulationId: 'ksa-sama-open-banking',
+    regulationId: 'ksa-sama-csf',
     regulationCode: 'SAMA Open Banking v2',
     title: 'SAMA Open Banking Payment Initiation & FAPI 2.0 Security Architecture Mandatory Go-Live',
     authority: 'Saudi Central Bank (SAMA)',
@@ -300,7 +300,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-oman-cbo-bm1188-audit',
-    regulationId: 'om-cbo-bm1188',
+    regulationId: 'oman-cbo-resilience',
     regulationCode: 'CBO Circular BM 1188',
     title: 'CBO Cybersecurity & SWIFT Customer Security Programme (CSP) Independent Verification',
     authority: 'Central Bank of Oman (CBO)',
@@ -374,7 +374,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-bahrain-cbb-vasp-compliance',
-    regulationId: 'bh-cbb-cra',
+    regulationId: 'bh-cbb-om',
     regulationCode: 'CBB Rulebook Volume 6',
     title: 'CBB Crypto-Asset (CRA) Module: Enhanced Capital Adequacy & Cold-Storage Compliance',
     authority: 'Central Bank of Bahrain (CBB)',
@@ -410,7 +410,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-ksa-nca-ecc-annual-mandate',
-    regulationId: 'ksa-nca-ecc',
+    regulationId: 'ksa-ecc-1',
     regulationCode: 'NCA ECC-1:2018',
     title: 'NCA Essential Cybersecurity Controls: Annual National Compliance Portal Submission',
     authority: 'National Cybersecurity Authority (NCA)',
@@ -483,7 +483,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-ksa-sdaia-ai-ethics-deadline',
-    regulationId: 'ksa-sdaia-ai-ethics',
+    regulationId: 'ksa-ai-ethics',
     regulationCode: 'SDAIA AI Ethics v1.1',
     title: 'SDAIA AI Ethics Principles v1.1: Mandatory Algorithmic Audits for Enterprise Generative AI',
     authority: 'Saudi Data & AI Authority (SDAIA)',
@@ -521,7 +521,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-oman-pdpl-grace-expiry',
-    regulationId: 'om-pdpl-rd6',
+    regulationId: 'om-pdpl-6',
     regulationCode: 'Oman Royal Decree 6/2022',
     title: 'Oman Personal Data Protection Law: Final Implementation Regulations Grace Period Expiration',
     authority: 'Ministry of Transport, Communications and Information Technology (MTCIT)',
@@ -558,7 +558,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-kuwait-cbk-zero-trust-deadline',
-    regulationId: 'kw-cbk-csf',
+    regulationId: 'kuwait-cbk-cyber',
     regulationCode: 'CBK Cybersecurity Framework',
     title: 'CBK Cybersecurity Framework for Banks: Zero Trust Architecture & Micro-Segmentation Mandate',
     authority: 'Central Bank of Kuwait (CBK)',
@@ -665,7 +665,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-israel-amendment-13-enforcement',
-    regulationId: 'il-ppl-amendment-13',
+    regulationId: 'il-ppa-5777',
     regulationCode: 'Israel PPL Amendment 13',
     title: 'Israel Privacy Protection Law (Amendment 13): Major Enforcement & DPO Mandate Enacted',
     authority: 'Privacy Protection Authority (PPA)',
@@ -702,7 +702,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-egypt-151-dpa-licensing-deadline',
-    regulationId: 'eg-dpl-151',
+    regulationId: 'eg-law-151',
     regulationCode: 'Egypt Law 151/2020',
     title: 'Egypt Data Protection Law (Law 151/2020): DPA Licensing & Direct Marketing Compliance Window',
     authority: 'Personal Data Protection Center (PDPC)',
@@ -741,7 +741,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   // --- LONG-TERM HORIZONS (Q1 2027 - 2028) ---
   {
     id: 'evt-kuwait-citra-tier4-cloud',
-    regulationId: 'kw-citra-cloud',
+    regulationId: 'kuwait-citra-cloud',
     regulationCode: 'CITRA Cloud v2.0',
     title: 'CITRA Cloud Framework: Mandatory Tier-IV In-Country Hosting for Sovereign Data',
     authority: 'Communication and Information Technology Regulatory Authority (CITRA)',
@@ -776,7 +776,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-uae-ai-autonomous-systems-code',
-    regulationId: 'uae-ai-code-2027',
+    regulationId: 'uae-ai-nat-strat',
     regulationCode: 'UAE AI Ethics Code',
     title: 'UAE Code of Practice for High-Risk Autonomous Systems & Robotics Conformity Certification',
     authority: 'Artificial Intelligence, Digital Economy and Remote Work Applications Office',
@@ -811,7 +811,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-qatar-qcb-cloud-migration-deadline',
-    regulationId: 'qa-qcb-cloud',
+    regulationId: 'qatar-qcb-cyber',
     regulationCode: 'QCB FinTech Cloud Circular',
     title: 'Qatar Central Bank: Final Migration Deadline for In-Country Cloud Workload Certification',
     authority: 'Qatar Central Bank (QCB)',
@@ -846,7 +846,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-ksa-nca-otcc-phase2',
-    regulationId: 'ksa-nca-otcc',
+    regulationId: 'ksa-otcc-1',
     regulationCode: 'NCA OTCC-1:2022 Phase 2',
     title: 'NCA Operational Technology Controls (OTCC): Phase 2 Hardware Root of Trust for Smart Grid',
     authority: 'National Cybersecurity Authority (NCA)',
@@ -960,7 +960,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-hist-uae-pdpl-decree45',
-    regulationId: 'uae-pdpl-45',
+    regulationId: 'uae-fed-pdpl',
     regulationCode: 'UAE Federal Decree-Law 45/2021',
     title: 'UAE Federal Personal Data Protection Law (PDPL) Implementation Roadmap Enacted',
     authority: 'UAE Data Office',
@@ -1034,7 +1034,7 @@ export const REGULATORY_TIMELINE_EVENTS: TimelineEvent[] = [
   },
   {
     id: 'evt-hist-ksa-nca-otcc-enacted',
-    regulationId: 'ksa-nca-otcc',
+    regulationId: 'ksa-otcc-1',
     regulationCode: 'NCA OTCC-1:2022',
     title: 'NCA Operational Technology Cybersecurity Controls (OTCC-1:2022) Mandated for Energy & Oil',
     authority: 'National Cybersecurity Authority (NCA)',

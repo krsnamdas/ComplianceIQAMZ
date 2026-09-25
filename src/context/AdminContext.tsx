@@ -572,6 +572,26 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return MENAT_REGULATIONS;
   });
 
+  // 3a. Hydrate regulations from the server (file-backed source of truth).
+  // The region JSON file (data/regions/<REGION>/regulations.json) is authoritative;
+  // localStorage is only a fast offline cache. On mount we fetch the server copy
+  // and adopt it so admin edits persisted to the file are always reflected.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/regulations')
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data && Array.isArray(data.regulations) && data.regulations.length > 0) {
+          setRegulations(data.regulations);
+        }
+      })
+      .catch((e) => console.warn('[AdminContext] Could not hydrate regulations from server; using cached copy.', e));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // 3b. Countries State
   const [countriesRaw, setCountriesRaw] = useState<Country[]>(() => {
     try {
@@ -1252,6 +1272,21 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       `Created regulation "${newRegulation.name}" (${newRegulation.authority}, ${newRegulation.countryId.toUpperCase()}).`
     );
 
+    // Persist the new regulation to the region JSON file (file-backed source of truth)
+    fetch('/api/regulations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newRegulation),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        // Adopt the server-canonical id/record so local state matches the file
+        if (data && data.regulation) {
+          setRegulations((prev) => prev.map((r) => (r.id === newRegulation.id ? data.regulation : r)));
+        }
+      })
+      .catch((e) => console.warn('[AdminContext] Could not persist new regulation to server file:', e));
+
     // Auto-register statutory URLs to weekly periodic scraper & link reachability daemon
     fetch('/api/scraper/register-regulation', {
       method: 'POST',
@@ -1273,18 +1308,24 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateRegulation = (id: string, updates: Partial<Regulation>) => {
+    const updatesWithMeta = { ...updates, lastUpdated: new Date().toISOString().split('T')[0] };
     setRegulations((prev) =>
       prev.map((reg) => {
         if (reg.id === id) {
           return {
             ...reg,
-            ...updates,
-            lastUpdated: new Date().toISOString().split('T')[0],
+            ...updatesWithMeta,
           };
         }
         return reg;
       })
     );
+    // Persist the amendment to the region JSON file
+    fetch(`/api/regulations/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatesWithMeta),
+    }).catch((e) => console.warn('[AdminContext] Could not persist regulation update to server file:', e));
     addAuditLog(
       'REGULATION_UPDATED',
       id,
@@ -1302,6 +1343,13 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             documentPdfUrl: documentPdfUrl || reg.documentPdfUrl,
             lastUpdated: new Date().toISOString().split('T')[0],
           };
+
+          // Persist the link change to the region JSON file (file-backed source of truth)
+          fetch(`/api/regulations/${encodeURIComponent(id)}/link`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ officialUrl, documentPdfUrl: documentPdfUrl || reg.documentPdfUrl }),
+          }).catch((e) => console.warn('[AdminContext] Could not persist link update to server file:', e));
 
           // Auto-register updated statutory link with weekly scraper
           fetch('/api/scraper/register-regulation', {
@@ -1327,6 +1375,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const deleteRegulation = (id: string) => {
     const target = regulations.find((r) => r.id === id);
     setRegulations((prev) => prev.filter((r) => r.id !== id));
+    // Persist the deletion to the region JSON file
+    fetch(`/api/regulations/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }).catch((e) => console.warn('[AdminContext] Could not persist deletion to server file:', e));
     addAuditLog(
       'REGULATION_DELETED',
       target?.code || id,

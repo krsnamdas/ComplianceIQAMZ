@@ -84,7 +84,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-ksa-sama-openbanking-2026q4',
-    regulationId: 'ksa-sama-open-banking',
+    regulationId: 'ksa-sama-csf',
     regulationCode: 'SAMA Open Banking v2',
     regulationName: 'SAMA Open Banking Payment Initiation Framework',
     authority: 'Saudi Central Bank (SAMA)',
@@ -220,7 +220,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-jordan-pdpl-2026q4',
-    regulationId: 'jo-pdpl-24',
+    regulationId: 'jordan-pdpl-24',
     regulationCode: 'Jordan PDPL Law 24/2023',
     regulationName: 'Personal Data Protection Law No. 24 of 2023',
     authority: 'Ministry of Digital Economy and Entrepreneurship (MoDEE)',
@@ -288,7 +288,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-ksa-nca-ecc-2026q4',
-    regulationId: 'ksa-nca-ecc',
+    regulationId: 'ksa-ecc-1',
     regulationCode: 'NCA ECC-1:2018',
     regulationName: 'Essential Cybersecurity Controls (ECC-1:2018)',
     authority: 'National Cybersecurity Authority (NCA)',
@@ -424,7 +424,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-oman-pdpl-2026q4',
-    regulationId: 'om-pdpl-rd6',
+    regulationId: 'om-pdpl-6',
     regulationCode: 'Oman Royal Decree 6/2022',
     regulationName: 'Oman Personal Data Protection Law (Executive Regulations)',
     authority: 'Ministry of Transport, Communications and Information Technology (MTCIT)',
@@ -562,7 +562,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-israel-amendment13-2027q1',
-    regulationId: 'il-ppl-amendment-13',
+    regulationId: 'il-ppa-5777',
     regulationCode: 'Israel PPL Amendment 13',
     regulationName: 'Privacy Protection Law (Amendment 13)',
     authority: 'Privacy Protection Authority (PPA)',
@@ -630,7 +630,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-egypt-law151-2027q1',
-    regulationId: 'eg-dpl-151',
+    regulationId: 'eg-law-151',
     regulationCode: 'Egypt Law 151/2020',
     regulationName: 'Egypt Data Protection Law (Executive Regulations)',
     authority: 'Personal Data Protection Center (PDPC)',
@@ -698,7 +698,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-kuwait-citra-cloud-2027q1',
-    regulationId: 'kw-citra-cloud',
+    regulationId: 'kuwait-citra-cloud',
     regulationCode: 'CITRA Cloud v2.0',
     regulationName: 'CITRA Cloud Computing Framework v2.0',
     authority: 'Communication and Information Technology Regulatory Authority (CITRA)',
@@ -766,7 +766,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-ksa-nca-otcc-phase2-2027q1',
-    regulationId: 'ksa-nca-otcc',
+    regulationId: 'ksa-otcc-1',
     regulationCode: 'NCA OTCC-1:2022 Phase 2',
     regulationName: 'Operational Technology Controls (OTCC Phase 2)',
     authority: 'National Cybersecurity Authority (NCA)',
@@ -834,7 +834,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-qatar-qcb-cloud-2027q1',
-    regulationId: 'qa-qcb-cloud',
+    regulationId: 'qatar-qcb-cyber',
     regulationCode: 'QCB FinTech Cloud Circular',
     regulationName: 'QCB Financial Sector Cloud Computing Framework',
     authority: 'Qatar Central Bank (QCB)',
@@ -972,7 +972,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-uae-ai-code-2027q2',
-    regulationId: 'uae-ai-code-2027',
+    regulationId: 'uae-ai-nat-strat',
     regulationCode: 'UAE AI Ethics Code',
     regulationName: 'Code of Practice for High-Risk Autonomous Systems',
     authority: 'UAE AI Office',
@@ -1110,7 +1110,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   // ==================== Q3 2027 ====================
   {
     id: 'rm-morocco-0908-2027q3',
-    regulationId: 'morocco-0908',
+    regulationId: 'morocco-cndp-0908',
     regulationCode: 'Morocco Law 09-08 Reform',
     regulationName: 'Modernized Personal Data Protection Law',
     authority: 'National Commission for the Control of Personal Data Protection (CNDP)',
@@ -1178,7 +1178,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-oman-cbo-resilience-2027q3',
-    regulationId: 'om-cbo-bm1188',
+    regulationId: 'oman-cbo-resilience',
     regulationCode: 'CBO Operational Resilience',
     regulationName: 'CBO Digital Operational Resilience & Cloud Risk Framework',
     authority: 'Central Bank of Oman (CBO)',
@@ -1248,7 +1248,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   // ==================== Q4 2027 ====================
   {
     id: 'rm-ksa-nca-cscc2-2027q4',
-    regulationId: 'ksa-nca-cscc',
+    regulationId: 'ksa-cscc-1',
     regulationCode: 'NCA CSCC-2:2027',
     regulationName: 'Critical Systems Cybersecurity Controls v2',
     authority: 'National Cybersecurity Authority (NCA)',
@@ -1316,7 +1316,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-uae-cbuae-ccsf-2027q4',
-    regulationId: 'uae-cbuae-ccsf',
+    regulationId: 'uae-cbuae-cyber',
     regulationCode: 'CBUAE CCSF Level 2',
     regulationName: 'Consumer & Cyber Cloud Security Framework (CCSF)',
     authority: 'Central Bank of the UAE (CBUAE)',
@@ -1454,7 +1454,7 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
   },
   {
     id: 'rm-ksa-space-quantum-2028q1',
-    regulationId: 'ksa-cst-space',
+    regulationId: 'ksa-space-act',
     regulationCode: 'CST Space Cyber v1',
     regulationName: 'Space & Satellite Ground Station Cybersecurity Regulations',
     authority: 'Communications, Space & Technology Commission (CST)',
