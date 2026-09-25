@@ -260,7 +260,12 @@ export interface TimelineMilestone {
 
 export interface TimelineEvent {
   id: string;
+  /** Registry regulation id this milestone maps to. Omitted for standalone
+   *  milestones that have no matching entry in the regulation registry. */
   regulationId?: string;
+  /** True when this milestone intentionally has no linked registry regulation
+   *  (e.g. a circular/directive not tracked as a standalone regulation). */
+  standalone?: boolean;
   regulationCode: string;
   title: string;
   authority: string;

@@ -119,7 +119,7 @@ export const CountryOverview: React.FC<CountryOverviewProps> = ({
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
-            Comprehensive Regulatory Compliance across 24 Middle East, North Africa &amp; Türkiye Jurisdictions
+            Comprehensive Regulatory Compliance across {countries.length} Middle East, North Africa &amp; Türkiye Jurisdictions
           </h1>
 
           <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
@@ -405,7 +405,7 @@ export const CountryOverview: React.FC<CountryOverviewProps> = ({
             <div>
               <h2 className="text-lg font-bold text-white tracking-tight flex items-center space-x-2">
                 <Globe2 className="w-5 h-5 text-emerald-400" />
-                <span>Sovereign Jurisdictions (24 Nations Across MENAT)</span>
+                <span>Sovereign Jurisdictions ({countries.length} Nations Across MENAT)</span>
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 Comprehensive statutory frameworks, clause crosswalks, gap analyses, and compliance baselines.
@@ -427,7 +427,7 @@ export const CountryOverview: React.FC<CountryOverviewProps> = ({
                 Detailed Sovereign Jurisdictions &amp; Technical Controls Locked
               </h3>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                To inspect sovereign standard articles, mandatory confidence ratings, gap analyses, and verified official gazette PDFs for all 24 countries, please sign in with your compliance officer or administrator credentials.
+                To inspect sovereign standard articles, mandatory confidence ratings, gap analyses, and verified official gazette PDFs for all {countries.length} countries, please sign in with your compliance officer or administrator credentials.
               </p>
             </div>
 
@@ -450,7 +450,7 @@ export const CountryOverview: React.FC<CountryOverviewProps> = ({
                 className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-xs sm:text-sm shadow-xl flex items-center space-x-2 transition-all transform hover:scale-[1.02] cursor-pointer"
               >
                 <Lock className="w-4 h-4" />
-                <span>Sign In to Unlock All 24 Jurisdictions</span>
+                <span>Sign In to Unlock All {countries.length} Jurisdictions</span>
               </button>
             </div>
           </div>
@@ -478,7 +478,7 @@ export const CountryOverview: React.FC<CountryOverviewProps> = ({
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
             >
-              All 24 Countries
+              All {countries.length} Countries
             </button>
             <button
               onClick={() => setActiveRegion('GCC')}

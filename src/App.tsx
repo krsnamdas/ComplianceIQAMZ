@@ -582,7 +582,7 @@ export default function App() {
                     <span>MENAT Regulatory Standards Registry</span>
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-3xl leading-relaxed">
-                    Master catalog of active cybersecurity, data protection, AI ethics, cloud security, and financial regulations across all 24 sovereign nations. Search by keyword or jurisdiction, filter by industry sector, inspect article-level controls, and generate audit-ready compliance dossiers with 100% verified official gazette portals.
+                    Master catalog of active cybersecurity, data protection, AI ethics, cloud security, and financial regulations across all {countries.length} sovereign nations. Search by keyword or jurisdiction, filter by industry sector, inspect article-level controls, and generate audit-ready compliance dossiers with 100% verified official gazette portals.
                   </p>
                 </div>
 
@@ -595,7 +595,7 @@ export default function App() {
                       onChange={(e) => setSelectedCountryId(e.target.value)}
                       className="px-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-lg text-white font-medium focus:outline-none focus:border-emerald-500"
                     >
-                      <option value="all">All 24 Jurisdictions</option>
+                      <option value="all">All {countries.length} Jurisdictions</option>
                       {countries.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.flag} {c.name} ({c.totalRegulationsCount || 0})

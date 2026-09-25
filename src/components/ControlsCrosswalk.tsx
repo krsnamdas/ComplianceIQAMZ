@@ -163,7 +163,7 @@ export const ControlsCrosswalk: React.FC<ControlsCrosswalkProps> = ({
             Controls Crosswalk &amp; Global Standards Mapping
           </h2>
           <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-3xl leading-relaxed">
-            Cross-references statutory articles across all 24 sovereign MENAT nations directly to global security frameworks (NIST CSF 2.0, ISO/IEC 27001:2022, CIS Controls v8, and CSA Cloud Controls Matrix). Use this tool to eliminate duplicative compliance audits, map existing technical controls to local laws, and export harmonized evidence workpapers.
+            Cross-references statutory articles across all {MENAT_COUNTRIES.length} sovereign MENAT nations directly to global security frameworks (NIST CSF 2.0, ISO/IEC 27001:2022, CIS Controls v8, and CSA Cloud Controls Matrix). Use this tool to eliminate duplicative compliance audits, map existing technical controls to local laws, and export harmonized evidence workpapers.
           </p>
         </div>
 
@@ -232,7 +232,7 @@ export const ControlsCrosswalk: React.FC<ControlsCrosswalkProps> = ({
               onChange={(e) => setSelectedCountry(e.target.value)}
               className="w-full px-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500"
             >
-              <option value="all">Jurisdiction: All 14 Countries</option>
+              <option value="all">Jurisdiction: All {MENAT_COUNTRIES.length} Countries</option>
               {MENAT_COUNTRIES.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.flag} {c.name}
