@@ -34,7 +34,7 @@ export const RegulatoryRadar: React.FC<RegulatoryRadarProps> = ({
   isScraping,
   onViewSources,
 }) => {
-  const { canTriggerScraper, isAnalyst, triggerRestrictedAction, setRole } = useRBAC();
+  const { canTriggerScraper, isAnalyst, isAdmin, triggerRestrictedAction, setRole } = useRBAC();
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'Under Discussion' | 'Draft' | 'Active' | 'Upcoming'>('all');
   const [showTerminalLogs, setShowTerminalLogs] = useState(true);
 
@@ -56,6 +56,11 @@ export const RegulatoryRadar: React.FC<RegulatoryRadarProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Scraper / crawler machinery is an administrative capability. It is hidden
+          for all non-admin users by default; normal users still see the read-only
+          "Upcoming Regulations & Public Consultations Radar" feed below. */}
+      {isAdmin && (
+        <>
       {/* Analyst Role Notice Banner */}
       {isAnalyst && (
         <div className="p-3.5 bg-sky-950/40 border border-sky-500/30 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
@@ -215,6 +220,8 @@ export const RegulatoryRadar: React.FC<RegulatoryRadarProps> = ({
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Upcoming Regulations & Public Consultations Feed */}
       <div className="space-y-4">

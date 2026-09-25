@@ -854,8 +854,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               );
             })()}
 
-            {/* Scraper Sync Button & Live Status */}
-            {featureFlags.sourcesManager && (
+            {/* Scraper Sync Button & Live Status — administrative capability, hidden for normal users */}
+            {isCurrentUserAdmin && featureFlags.sourcesManager && (
               <div className="flex items-center space-x-1.5">
                 <button
                   type="button"

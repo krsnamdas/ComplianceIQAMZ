@@ -307,16 +307,28 @@ export const ImpactHorizonChart: React.FC<ImpactHorizonChartProps> = ({
       .attr('stroke-width', 2)
       .style('filter', (d) => (d.urgency.tier === 'Critical' ? 'url(#critical-glow)' : 'none'));
 
-    // Regulation Code Label beside node
+    // Regulation Code Label beside node.
+    // With ~89 regulations clustered in the near-term / high-urgency quadrant the
+    // always-on labels overlapped into an unreadable mass. We now only label
+    // pinned (watchlist) items — a small, deliberately-chosen set — and let the
+    // hover tooltip reveal the full name/authority/score for every other node.
+    // A native <title> is also attached to each node group so the browser shows
+    // the full regulation name on hover even before the React tooltip renders.
     nodeGroups
+      .filter((d) => d.isPinned)
       .append('text')
       .attr('x', 12)
       .attr('y', 3)
       .attr('fill', '#e2e8f0')
       .attr('font-size', '9.5px')
-      .attr('font-weight', (d) => (d.isPinned ? '700' : '500'))
+      .attr('font-weight', '700')
       .text((d) => d.regulation.code)
       .attr('pointer-events', 'none');
+
+    // Accessible native tooltip (code — name) on every node for quick identification.
+    nodeGroups
+      .append('title')
+      .text((d) => `${d.regulation.code} — ${d.regulation.name}`);
 
     // Mouse Interactions
     nodeGroups
@@ -524,7 +536,7 @@ export const ImpactHorizonChart: React.FC<ImpactHorizonChartProps> = ({
       </div>
 
       <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-        <span>* Bubble size reflects mapped auditable control breadth. Click any node to open regulation details.</span>
+        <span>* Bubble size reflects mapped auditable control breadth. Hover a node for its full name &amp; score; click to open details. Watchlist items are labelled.</span>
         <span>Showing {filteredPoints.length} plotted statutory instruments</span>
       </div>
     </div>
