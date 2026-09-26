@@ -1,31 +1,93 @@
 @import "tailwindcss";
 
 /* =============================================================================
-   Brighter Display Mode
+   ComplianceIQ Theme System
    -----------------------------------------------------------------------------
-   Toggled via the ThemeContext (adds `.bright-mode` to <html>). Instead of
-   maintaining a second set of color classes across every component, we lift the
-   whole dark slate palette with a tuned filter: a little more brightness, richer
-   saturation for the cyan/emerald accents, and a gentle contrast bump so text
-   stays crisp.
+   The app has ~1,800 hardcoded Tailwind color classes across 43 components,
+   built around a small set of families:
+     - `slate`   -> app surfaces + neutral text
+     - `cyan`    -> primary accent (badges, links, highlights)
+     - `emerald` -> success / "active" accent
+   Rather than editing every component, we remap those Tailwind color scales
+   here in one place (Tailwind v4 `@theme`). Changing the values below re-skins
+   the entire application.
 
-   The filter is applied to #root (the app tree) rather than <body>. A CSS filter
-   establishes a containing block for descendant position:fixed elements, so
-   keeping it on #root (which the app already treats as the viewport-filling
-   surface) keeps modals, drawers and dropdowns behaving correctly while still
-   brightening them. The matching background on html/body prevents any unfiltered
-   gap from showing during overscroll.
+   STEP 1 (current): "Warm Graphite" dark palette (Direction A)
+     - Warm charcoal surfaces instead of cold blue-black
+     - Indigo-violet primary accent (mapped onto the `cyan` family)
+     - Green retained for success (mapped onto the `emerald` family)
+     - Typography: Inter (UI/body via font-sans) + IBM Plex Mono (font-mono)
+
+   STEP 2 (later): a Light palette (Direction B) under `html.light`.
+   ============================================================================= */
+
+@theme {
+  /* ---- Typography -------------------------------------------------------- */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+
+  /* ---- SURFACES (mapped onto Tailwind `slate`) --------------------------
+     Direction A "Warm Graphite": neutral warm charcoal rather than blue-slate.
+     Dark end = deep surfaces; light end = near-white text.                   */
+  --color-slate-950: #131109; /* app background */
+  --color-slate-900: #1c1a13; /* raised cards / navbar */
+  --color-slate-800: #3a352b; /* borders / dividers */
+  --color-slate-700: #4d4638; /* stronger borders / hover */
+  --color-slate-600: #6b6250; /* muted UI lines */
+  --color-slate-500: #8a8069; /* faint text */
+  --color-slate-400: #a49c8c; /* secondary text */
+  --color-slate-300: #c9c2b4; /* body text */
+  --color-slate-200: #ddd8cc; /* strong text */
+  --color-slate-100: #efece4; /* headings on dark */
+  --color-slate-50:  #f7f5ef;
+
+  /* ---- PRIMARY ACCENT (mapped onto Tailwind `cyan`) ----------------------
+     Indigo-violet. Used for badges, links, active states, highlights.        */
+  --color-cyan-950: #221c3a;
+  --color-cyan-900: #2c2550;
+  --color-cyan-800: #3a3072;
+  --color-cyan-700: #4c3fa0;
+  --color-cyan-600: #5b49c9; /* primary buttons */
+  --color-cyan-500: #6d5bd0; /* primary accent */
+  --color-cyan-400: #8b78e6; /* accent text on dark */
+  --color-cyan-300: #b6a8f0; /* bright accent text */
+  --color-cyan-200: #d2c8f7;
+  --color-cyan-100: #e7e0fb;
+
+  /* ---- SUCCESS ACCENT (mapped onto Tailwind `emerald`) -------------------
+     Retained as green for "active / ok / in force", tuned to sit on graphite. */
+  --color-emerald-950: #0c2a1c;
+  --color-emerald-900: #123726;
+  --color-emerald-800: #185038;
+  --color-emerald-700: #1f6b4b;
+  --color-emerald-600: #268a5f;
+  --color-emerald-500: #34a06f; /* success buttons */
+  --color-emerald-400: #4bb37a; /* success accent text */
+  --color-emerald-300: #69c993; /* bright success text */
+  --color-emerald-200: #a7e0c0;
+  --color-emerald-100: #d3f0e0;
+
+  /* Semantic status colors (red = critical, amber = warning) are left at
+     Tailwind defaults so their meaning is preserved everywhere. */
+}
+
+/* =============================================================================
+   Root surface + theme transition
    ============================================================================= */
 html,
 body {
-  background-color: #020617; /* slate-950 — matches the app surface */
+  background-color: var(--color-slate-950);
 }
 
 #root {
-  transition: filter 0.35s ease;
+  transition: filter 0.35s ease, background-color 0.35s ease;
   min-height: 100vh;
 }
 
+/* Legacy "bright mode" hook retained for now (Step 2 will replace the toggle
+   with a proper Dark/Light theme switch). A gentle lift for the dark palette. */
 html.bright-mode #root {
-  filter: brightness(1.16) saturate(1.25) contrast(1.03);
+  filter: brightness(1.12) saturate(1.1) contrast(1.02);
 }
