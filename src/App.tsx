@@ -63,8 +63,6 @@ export default function App() {
   const prevUserIdRef = useRef(currentUser?.id);
   useEffect(() => {
     if (prevUserIdRef.current && prevUserIdRef.current !== currentUser?.id) {
-      // eslint-disable-next-line no-console
-      console.warn('[NAV-DEBUG] user-change-redirect fired', { prev: prevUserIdRef.current, next: currentUser?.id });
       prevUserIdRef.current = currentUser?.id;
       setActiveTab('overview');
     } else if (currentUser?.id) {
@@ -75,8 +73,6 @@ export default function App() {
   // Strict Security Guard: Never allow non-admins on the admin tab
   useEffect(() => {
     if (activeTab === 'admin' && !isCurrentUserAdmin) {
-      // eslint-disable-next-line no-console
-      console.warn('[NAV-DEBUG] strict-admin-guard fired', { activeTab, isCurrentUserAdmin });
       setActiveTab('overview');
     }
   }, [activeTab, isCurrentUserAdmin]);
@@ -121,8 +117,6 @@ export default function App() {
   // this effect used to bounce them out of the Admin Console back to Overview.
   useEffect(() => {
     if (!isAuthenticated && !isAdminUnlocked && activeTab !== 'overview') {
-      // eslint-disable-next-line no-console
-      console.warn('[NAV-DEBUG] guest-redirect fired', { isAuthenticated, isAdminUnlocked, activeTab });
       setActiveTab('overview');
     }
   }, [isAuthenticated, isAdminUnlocked, activeTab]);
