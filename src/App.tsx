@@ -51,7 +51,7 @@ import { Search, Filter, Shield, Globe2, BookOpen, Layers, CheckCircle2, AlertCi
 
 export default function App() {
   const { canManageWatchlist, canTriggerScraper, triggerRestrictedAction } = useRBAC();
-  const { currentUser, isCurrentUserAdmin, regulations, countries, featureFlags, isAuthenticated, addAuditLog, timelineEvents, benchmarkDate } = useAdmin();
+  const { currentUser, isCurrentUserAdmin, isAdminUnlocked, regulations, countries, featureFlags, isAuthenticated, addAuditLog, timelineEvents, benchmarkDate } = useAdmin();
 
   const [activeTab, setActiveTab] = useState<NavigationTab>('overview');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -109,12 +109,17 @@ export default function App() {
     }
   };
 
-  // Redirect guest visitors to overview if on a protected tab
+  // Redirect guest visitors to overview if on a protected tab.
+  // Exception: an unlocked admin console counts as an authenticated session.
+  // Editing a regulation fires setRegulations/setAuditLogs, which re-renders App
+  // and re-runs this guard. If the admin reached the console via the password
+  // gateway (isAuthenticated may still be false while isAdminUnlocked is true),
+  // this effect used to bounce them out of the Admin Console back to Overview.
   useEffect(() => {
-    if (!isAuthenticated && activeTab !== 'overview') {
+    if (!isAuthenticated && !isAdminUnlocked && activeTab !== 'overview') {
       setActiveTab('overview');
     }
-  }, [isAuthenticated, activeTab]);
+  }, [isAuthenticated, isAdminUnlocked, activeTab]);
 
   // Auto-fallback to overview if active tab gets disabled via feature flags
   useEffect(() => {
@@ -136,6 +141,12 @@ export default function App() {
   const [minConfidence, setMinConfidence] = useState<number>(0);
   const [showGlobalLegendModal, setShowGlobalLegendModal] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  // Exact regulation to focus in the registry. When set, the registry shows
+  // ONLY this regulation (matched by id), which avoids code-substring
+  // collisions (e.g. "NCA CSCC-1:2019" prefixing "NCA CSCC-2:2027", or
+  // "NCA OTCC-1:2022" being a substring of an event code). Every
+  // "View Regulation" deep-link routes through focusRegulation() below.
+  const [focusedRegulationId, setFocusedRegulationId] = useState<string | undefined>(undefined);
   const [selectedDiffId, setSelectedDiffId] = useState<string | undefined>(undefined);
   const [comparatorRegA, setComparatorRegA] = useState<string | undefined>(undefined);
   const [comparatorRegB, setComparatorRegB] = useState<string | undefined>(undefined);
@@ -166,27 +177,80 @@ export default function App() {
     }
   }, [featureFlags.aiCopilot, isAIChatOpen]);
 
-  // Regulatory Watchlist State (Persistent)
-  const [watchlistPins, setWatchlistPins] = useState<WatchlistPin[]>(() => loadWatchlistPins());
+  // Regulatory Watchlist State (Persistent, PER-USER).
+  // Pins are scoped to the logged-in user's id so they are never shared across
+  // accounts. Initialized from the current user's stored pins (empty if none).
+  const [watchlistPins, setWatchlistPins] = useState<WatchlistPin[]>(() =>
+    loadWatchlistPins(currentUser?.id)
+  );
+
+  // Reload pins whenever the active user changes (switch user / sign in / out),
+  // so each account sees only its own watchlist.
+  const prevWatchlistUserIdRef = useRef(currentUser?.id);
+  useEffect(() => {
+    if (prevWatchlistUserIdRef.current !== currentUser?.id) {
+      prevWatchlistUserIdRef.current = currentUser?.id;
+      setWatchlistPins(loadWatchlistPins(currentUser?.id));
+    }
+  }, [currentUser?.id]);
   const [watchlistPreferences, setWatchlistPreferences] = useState<WatchlistPreferences>(() =>
     loadWatchlistPreferences()
   );
-  const [customNotifications, setCustomNotifications] = useState<WatchlistNotification[]>(() => {
+  // Per-user notification storage keys (simulated alerts + read-state). These
+  // must be scoped to the logged-in user so alerts/read flags are NOT shared
+  // across accounts (mirrors the per-user watchlist pins).
+  const customNotifsKey = (uid?: string | null) =>
+    `menat_custom_notifications_v2::${uid || 'guest'}`;
+  const readNotifsKey = (uid?: string | null) =>
+    `menat_read_notifications_v2::${uid || 'guest'}`;
+  // Dismissed notification IDs are persisted per-user so that dismissing an
+  // alert (including generated ones that are recomputed from pins) is durable
+  // and never reappears — and is never shared across accounts.
+  const dismissedNotifsKey = (uid?: string | null) =>
+    `menat_dismissed_notifications_v2::${uid || 'guest'}`;
+
+  const loadCustomNotifs = (uid?: string | null): WatchlistNotification[] => {
     try {
-      const raw = localStorage.getItem('menat_custom_notifications_v2');
+      const raw = localStorage.getItem(customNotifsKey(uid));
       return raw ? JSON.parse(raw) : [];
     } catch {
       return [];
     }
-  });
-  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => {
+  };
+  const loadReadNotifIds = (uid?: string | null): Set<string> => {
     try {
-      const raw = localStorage.getItem('menat_read_notifications_v2');
+      const raw = localStorage.getItem(readNotifsKey(uid));
       return raw ? new Set(JSON.parse(raw)) : new Set();
     } catch {
       return new Set();
     }
-  });
+  };
+  const loadDismissedNotifIds = (uid?: string | null): Set<string> => {
+    try {
+      const raw = localStorage.getItem(dismissedNotifsKey(uid));
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  };
+
+  const [customNotifications, setCustomNotifications] = useState<WatchlistNotification[]>(() =>
+    loadCustomNotifs(currentUser?.id)
+  );
+  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() =>
+    loadReadNotifIds(currentUser?.id)
+  );
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<Set<string>>(() =>
+    loadDismissedNotifIds(currentUser?.id)
+  );
+
+  // Reload per-user notifications + read-state whenever the active user changes.
+  useEffect(() => {
+    setCustomNotifications(loadCustomNotifs(currentUser?.id));
+    setReadNotificationIds(loadReadNotifIds(currentUser?.id));
+    setDismissedNotificationIds(loadDismissedNotifIds(currentUser?.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   // Scraper status state
   const [scraperStatus, setScraperStatus] = useState<ScraperStatus>({
@@ -222,11 +286,16 @@ export default function App() {
       timelineEvents,
       benchmarkDate
     );
-    return rawNotifs.map((n) => ({
-      ...n,
-      read: readNotificationIds.has(n.id) || n.read,
-    }));
-  }, [watchlistPins, regulations, updates, customNotifications, readNotificationIds, timelineEvents, benchmarkDate]);
+    return rawNotifs
+      // Drop any notification the user has explicitly dismissed. Generated
+      // notifications are recomputed from pins on every render, so filtering by
+      // the persisted dismissed-set is what makes dismissal stick.
+      .filter((n) => !dismissedNotificationIds.has(n.id))
+      .map((n) => ({
+        ...n,
+        read: readNotificationIds.has(n.id) || n.read,
+      }));
+  }, [watchlistPins, regulations, updates, customNotifications, readNotificationIds, dismissedNotificationIds, timelineEvents, benchmarkDate]);
 
   const unreadSpecializedCount = useMemo(
     () => specializedNotifications.filter((n) => !n.read).length,
@@ -272,32 +341,32 @@ export default function App() {
     }
 
     setWatchlistPins(updatedPins);
-    saveWatchlistPins(updatedPins);
+    saveWatchlistPins(updatedPins, currentUser?.id);
     setTimeout(() => setAlertMessage(null), 4000);
   };
 
   const handleUpdatePinNotes = (regulationId: string, notes: string) => {
     const next = watchlistPins.map((p) => (p.regulationId === regulationId ? { ...p, notes } : p));
     setWatchlistPins(next);
-    saveWatchlistPins(next);
+    saveWatchlistPins(next, currentUser?.id);
   };
 
   const handleUpdatePinPriority = (regulationId: string, priority: WatchlistPriority) => {
     const next = watchlistPins.map((p) => (p.regulationId === regulationId ? { ...p, priority } : p));
     setWatchlistPins(next);
-    saveWatchlistPins(next);
+    saveWatchlistPins(next, currentUser?.id);
   };
 
   const handleUpdatePinTags = (regulationId: string, tags: string[]) => {
     const next = watchlistPins.map((p) => (p.regulationId === regulationId ? { ...p, tags } : p));
     setWatchlistPins(next);
-    saveWatchlistPins(next);
+    saveWatchlistPins(next, currentUser?.id);
   };
 
   const handleUpdatePinAssignee = (regulationId: string, assignedTo: string) => {
     const next = watchlistPins.map((p) => (p.regulationId === regulationId ? { ...p, assignedTo } : p));
     setWatchlistPins(next);
-    saveWatchlistPins(next);
+    saveWatchlistPins(next, currentUser?.id);
   };
 
   const handleUpdatePinNotificationRules = (
@@ -306,7 +375,7 @@ export default function App() {
   ) => {
     const next = watchlistPins.map((p) => (p.regulationId === regulationId ? { ...p, ...rules } : p));
     setWatchlistPins(next);
-    saveWatchlistPins(next);
+    saveWatchlistPins(next, currentUser?.id);
   };
 
   const handleMarkNotificationAsRead = (notificationId: string) => {
@@ -317,32 +386,90 @@ export default function App() {
       nextSet.add(notificationId);
     }
     setReadNotificationIds(nextSet);
-    localStorage.setItem('menat_read_notifications_v2', JSON.stringify(Array.from(nextSet)));
+    localStorage.setItem(readNotifsKey(currentUser?.id), JSON.stringify(Array.from(nextSet)));
   };
 
   const handleMarkAllNotificationsAsRead = () => {
     const nextSet = new Set(readNotificationIds);
     specializedNotifications.forEach((n) => nextSet.add(n.id));
     setReadNotificationIds(nextSet);
-    localStorage.setItem('menat_read_notifications_v2', JSON.stringify(Array.from(nextSet)));
+    localStorage.setItem(readNotifsKey(currentUser?.id), JSON.stringify(Array.from(nextSet)));
   };
 
   const handleDeleteNotification = (notificationId: string) => {
+    // Remove custom notifications outright.
     const filtered = customNotifications.filter((n) => n.id !== notificationId);
     setCustomNotifications(filtered);
-    localStorage.setItem('menat_custom_notifications_v2', JSON.stringify(filtered));
+    localStorage.setItem(customNotifsKey(currentUser?.id), JSON.stringify(filtered));
 
-    // Also mark as read
+    // Record the dismissal durably so generated notifications (which are
+    // recomputed from pins) don't reappear after re-render.
+    const dismissedSet = new Set(dismissedNotificationIds);
+    dismissedSet.add(notificationId);
+    setDismissedNotificationIds(dismissedSet);
+    localStorage.setItem(dismissedNotifsKey(currentUser?.id), JSON.stringify(Array.from(dismissedSet)));
+
+    // Also mark as read (keeps unread counts consistent).
     const nextSet = new Set(readNotificationIds);
     nextSet.add(notificationId);
     setReadNotificationIds(nextSet);
-    localStorage.setItem('menat_read_notifications_v2', JSON.stringify(Array.from(nextSet)));
+    localStorage.setItem(readNotifsKey(currentUser?.id), JSON.stringify(Array.from(nextSet)));
+  };
+
+  // Dismiss every currently visible notification at once (bell "Dismiss all").
+  const handleDismissAllNotifications = () => {
+    const dismissedSet = new Set(dismissedNotificationIds);
+    specializedNotifications.forEach((n) => dismissedSet.add(n.id));
+    setDismissedNotificationIds(dismissedSet);
+    localStorage.setItem(dismissedNotifsKey(currentUser?.id), JSON.stringify(Array.from(dismissedSet)));
+
+    // Drop any custom notifications too.
+    const remainingCustom = customNotifications.filter((n) => !dismissedSet.has(n.id));
+    setCustomNotifications(remainingCustom);
+    localStorage.setItem(customNotifsKey(currentUser?.id), JSON.stringify(remainingCustom));
+  };
+
+  // Navigate the bell's per-notification link to the specific regulation.
+  // Single, deterministic "open this exact regulation" entry point used by ALL
+  // deep-links (bell notifications, timeline, heatmap, sector matrix, roadmap,
+  // impact horizon, redlining, watchlist, digest). It focuses the registry on
+  // the regulation by its unique id — never by a code substring — so it can
+  // never surface or select the wrong regulation when codes overlap.
+  const focusRegulation = (regIdOrCode: string) => {
+    if (!regIdOrCode) {
+      setActiveTab('regulations');
+      return;
+    }
+    // Accept either an id (preferred) or a code, but resolve to the exact record.
+    const reg =
+      regulations.find((r) => r.id === regIdOrCode) ||
+      regulations.find((r) => r.code.toLowerCase() === regIdOrCode.toLowerCase());
+    setSelectedCountryId('all');
+    setSearchTerm('');
+    setFocusedRegulationId(reg ? reg.id : undefined);
+    if (!reg) {
+      // Unknown target: fall back to a plain search so the user still sees
+      // something relevant rather than an empty focused view.
+      setSearchTerm(regIdOrCode);
+    }
+    setActiveTab('regulations');
+  };
+
+  // When the user types in the registry search box, drop any exact focus so
+  // free-text search behaves normally.
+  const handleSearchTermChange = (value: string) => {
+    setFocusedRegulationId(undefined);
+    setSearchTerm(value);
+  };
+
+  const handleViewNotificationRegulation = (regulationId: string) => {
+    focusRegulation(regulationId);
   };
 
   const handleAddSimulatedNotification = (notif: WatchlistNotification) => {
     const next = [notif, ...customNotifications];
     setCustomNotifications(next);
-    localStorage.setItem('menat_custom_notifications_v2', JSON.stringify(next));
+    localStorage.setItem(customNotifsKey(currentUser?.id), JSON.stringify(next));
   };
 
   const handleUpdatePreferences = (prefs: WatchlistPreferences) => {
@@ -432,6 +559,13 @@ export default function App() {
 
   // Filter regulations for the catalog view
   const filteredRegulations = regulations.filter((r) => {
+    // Exact focus takes precedence: when a deep-link targeted a specific
+    // regulation, show only that one (matched by unique id) and ignore the
+    // other filters, so overlapping codes can never surface the wrong record.
+    if (focusedRegulationId) {
+      return r.id === focusedRegulationId;
+    }
+
     if (selectedCountryId !== 'all' && r.countryId !== selectedCountryId) return false;
 
     if (techFilter === 'tech' && !r.isTech) return false;
@@ -482,6 +616,10 @@ export default function App() {
         totalRegulations={regulations.length}
         watchlistCount={resolvedWatchlistCount}
         unreadNotificationsCount={unreadSpecializedCount}
+        notifications={specializedNotifications}
+        onDismissNotification={handleDeleteNotification}
+        onDismissAllNotifications={handleDismissAllNotifications}
+        onViewNotificationRegulation={handleViewNotificationRegulation}
         scraperStatus={scraperStatus}
       />
 
@@ -557,10 +695,7 @@ export default function App() {
         {activeTab === 'digest' && (
           <RegionalRegulatoryDigest
             onNavigateHome={() => setActiveTab('overview')}
-            onViewRegulation={(code) => {
-              setSearchTerm(code);
-              setActiveTab('regulations');
-            }}
+            onViewRegulation={(code) => focusRegulation(code)}
           />
         )}
 
@@ -628,7 +763,7 @@ export default function App() {
                     type="text"
                     placeholder="Search regulation name, code, or keyword..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => handleSearchTermChange(e.target.value)}
                     className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                   />
                 </div>
@@ -794,10 +929,18 @@ export default function App() {
               </div>
 
               {/* Active Filter Chips & Summary */}
-              {(minConfidence > 0 || searchTerm || techFilter !== 'all' || sectorFilter !== 'all' || selectedCountryId !== 'all') && (
+              {(focusedRegulationId || minConfidence > 0 || searchTerm || techFilter !== 'all' || sectorFilter !== 'all' || selectedCountryId !== 'all') && (
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px]">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-slate-400 font-medium">Active Filters:</span>
+                    {focusedRegulationId && (
+                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700 text-[10px]">
+                        <span>
+                          Focused: {regulations.find((r) => r.id === focusedRegulationId)?.code || 'selected regulation'}
+                        </span>
+                        <button onClick={() => setFocusedRegulationId(undefined)} className="hover:text-white cursor-pointer ml-1">✕</button>
+                      </span>
+                    )}
                     {minConfidence > 0 && (
                       <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono text-[10px]">
                         <span>Confidence ≥{minConfidence}%</span>
@@ -838,6 +981,7 @@ export default function App() {
                       setTechFilter('all');
                       setSectorFilter('all');
                       setSearchTerm('');
+                      setFocusedRegulationId(undefined);
                     }}
                     className="text-xs text-slate-400 hover:text-white underline cursor-pointer"
                   >
@@ -916,6 +1060,7 @@ export default function App() {
                     setTechFilter('all');
                     setSectorFilter('all');
                     setSearchTerm('');
+                    setFocusedRegulationId(undefined);
                   }}
                   className="mt-3 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
                 >
@@ -940,14 +1085,7 @@ export default function App() {
         {activeTab === 'ai_redline' && featureFlags.aiRedlining !== false && (
           <AIRedlining
             regulations={regulations}
-            onNavigateToRegulation={(regId) => {
-              const reg = regulations.find((r) => r.id === regId);
-              if (reg) {
-                setSelectedCountryId(reg.countryId);
-                setSearchTerm(reg.code);
-                setActiveTab('regulations');
-              }
-            }}
+            onNavigateToRegulation={(regId) => focusRegulation(regId)}
             onInterpretControl={(text, id, regName, jur) => {
               setInterpreterInitialData({
                 text,
@@ -963,11 +1101,7 @@ export default function App() {
         {/* VIEW: Compliance Maturity Heatmap (Regional Intensity & Sector Coverage) */}
         {activeTab === 'maturity_heatmap' && (
           <ComplianceMaturityHeatmap
-            onSelectRegulation={(code) => {
-              setSelectedCountryId('all');
-              setSearchTerm(code);
-              setActiveTab('regulations');
-            }}
+            onSelectRegulation={(code) => focusRegulation(code)}
             onOpenAIChatWithPrompt={
               featureFlags.aiCopilot
                 ? (prompt) => {
@@ -999,14 +1133,7 @@ export default function App() {
             onDeleteNotification={handleDeleteNotification}
             onAddSimulatedNotification={handleAddSimulatedNotification}
             onUpdatePreferences={handleUpdatePreferences}
-            onViewRegulationDetails={(regId) => {
-              const reg = regulations.find((r) => r.id === regId);
-              if (reg) {
-                setSelectedCountryId(reg.countryId);
-                setSearchTerm(reg.code);
-              }
-              setActiveTab('regulations');
-            }}
+            onViewRegulationDetails={(regId) => focusRegulation(regId)}
             onViewVersionDiff={(diffId) => {
               setSelectedDiffId(diffId);
               setActiveTab('version_diffs');
@@ -1019,11 +1146,7 @@ export default function App() {
         {/* VIEW: Regulatory Roadmap (Quarterly Progression & Long-Term Investment Forecast) */}
         {activeTab === 'roadmap' && (
           <RegulatoryRoadmap
-            onSelectRegulation={(code) => {
-              setSelectedCountryId('all');
-              setSearchTerm(code);
-              setActiveTab('regulations');
-            }}
+            onSelectRegulation={(code) => focusRegulation(code)}
             onSelectCountry={(countryId) => {
               setSelectedCountryId(countryId);
               setActiveTab('regulations');
@@ -1049,11 +1172,7 @@ export default function App() {
               setSelectedCountryId(countryId);
               setActiveTab('regulations');
             }}
-            onViewRegulation={(regulationId) => {
-              setSelectedCountryId('all');
-              setSearchTerm(regulationId);
-              setActiveTab('regulations');
-            }}
+            onViewRegulation={(regulationId) => focusRegulation(regulationId)}
             onViewVersionDiff={(diffId) => {
               setSelectedDiffId(diffId);
               setActiveTab('version_diffs');
@@ -1083,7 +1202,7 @@ export default function App() {
             initialRegAId={comparatorRegA}
             initialRegBId={comparatorRegB}
             onNavigateToRegistry={(searchQuery) => {
-              if (searchQuery) setSearchTerm(searchQuery);
+              if (searchQuery) handleSearchTermChange(searchQuery);
               setActiveTab('regulations');
             }}
           />
@@ -1093,11 +1212,7 @@ export default function App() {
         {activeTab === 'sectors' && (
           <SectorMatrix
             regulations={regulations}
-            onSelectRegulation={(id) => {
-              setSelectedCountryId('all');
-              setSearchTerm(id);
-              setActiveTab('regulations');
-            }}
+            onSelectRegulation={(id) => focusRegulation(id)}
           />
         )}
 

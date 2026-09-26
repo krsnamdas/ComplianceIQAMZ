@@ -670,7 +670,13 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
             {/* Official Portal Link with Verified / Unverified Indicator */}
             {(() => {
               const audit = getLinkAudit ? getLinkAudit(regulation.id, 'officialUrl') : undefined;
-              const isBroken = audit?.isBroken;
+              // Three states, so we never assert "Verified 200 OK" for a link we
+              // have not actually probed:
+              //   - broken   : an audit ran and the link failed reachability
+              //   - verified : an audit ran and confirmed the link is reachable
+              //   - unchecked: no audit has run yet (default) -> neutral status
+              const isBroken = audit?.isBroken === true;
+              const isVerified = audit?.isReachable === true && !audit?.isBroken;
 
               return (
                 <div className="inline-flex items-center space-x-1.5">
@@ -694,22 +700,30 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                     <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-300" />
                   </a>
 
-                  {/* Reachability Status Indicator: Verified vs Unverified */}
+                  {/* Reachability Status Indicator: Verified / Unverified / Not checked */}
                   {isBroken ? (
                     <span
                       className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/40"
-                      title={`Statutory Link Check: Unreachable or missing (${audit?.statusText || 'HTTP 404/Error'}). Flagged for admin remediation.`}
+                      title={`Statutory Link Check: Unreachable or missing (${audit?.statusText || 'HTTP 404/Error'}) as of ${audit?.lastChecked || 'last daemon scan'}. Some government portals block automated checks, so a link flagged here may still open in a browser. Flagged for admin remediation.`}
                     >
                       <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0" />
                       <span>Unverified / Missing</span>
                     </span>
-                  ) : (
+                  ) : isVerified ? (
                     <span
                       className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
-                      title={`Statutory Link Check: Reachable (HTTP ${audit?.status || 200} OK) • Last Checked: ${audit?.lastChecked || 'Recent daemon scan'}`}
+                      title={`Statutory Link Check: Reachable (HTTP ${audit?.status || 200} OK) • Last Checked: ${audit?.lastChecked || 'recent daemon scan'}`}
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                       <span>Verified (200 OK)</span>
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-500/15 text-slate-300 border border-slate-500/30"
+                      title="Statutory Link Check: not yet independently verified. Run the Link Integrity audit in the Admin Console to confirm reachability."
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                      <span>Not checked</span>
                     </span>
                   )}
 
@@ -755,7 +769,8 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
             {/* Gazette PDF Document Link with Verified vs Missing Indicator */}
             {regulation.documentPdfUrl && (() => {
               const pdfAudit = getLinkAudit ? getLinkAudit(regulation.id, 'documentPdfUrl') : undefined;
-              const isPdfBroken = pdfAudit?.isBroken;
+              const isPdfBroken = pdfAudit?.isBroken === true;
+              const isPdfVerified = pdfAudit?.isReachable === true && !pdfAudit?.isBroken;
 
               return (
                 <div className="inline-flex items-center space-x-1.5">
@@ -784,22 +799,30 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                     <ExternalLink className="w-3 h-3 text-slate-400" />
                   </a>
 
-                  {/* PDF Reachability Status: PDF Verified vs PDF Missing */}
+                  {/* PDF Reachability Status: Verified / Missing / Not checked */}
                   {isPdfBroken ? (
                     <span
                       className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/40"
-                      title={`PDF Gazette Check: PDF Missing or unreachable (${pdfAudit?.statusText || 'Inaccessible'}). Flagged for admin verification.`}
+                      title={`PDF Gazette Check: PDF Missing or unreachable (${pdfAudit?.statusText || 'Inaccessible'}) as of ${pdfAudit?.lastChecked || 'last daemon scan'}. Automated checks can be blocked by the portal, so the PDF may still open in a browser. Flagged for admin verification.`}
                     >
                       <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
                       <span>PDF Missing</span>
                     </span>
-                  ) : (
+                  ) : isPdfVerified ? (
                     <span
                       className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
-                      title={`PDF Gazette Check: Verified Reachable (HTTP ${pdfAudit?.status || 200} OK) • Last Checked: ${pdfAudit?.lastChecked || 'Recent daemon scan'}`}
+                      title={`PDF Gazette Check: Verified Reachable (HTTP ${pdfAudit?.status || 200} OK) • Last Checked: ${pdfAudit?.lastChecked || 'recent daemon scan'}`}
                     >
                       <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
                       <span>PDF Verified</span>
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-500/15 text-slate-300 border border-slate-500/30"
+                      title="PDF Gazette Check: not yet independently verified. Run the Link Integrity audit in the Admin Console to confirm reachability."
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                      <span>PDF Not checked</span>
                     </span>
                   )}
 
@@ -955,6 +978,20 @@ export const RegulationCard: React.FC<RegulationCardProps> = ({
                     <span>{isLoadingConfidence ? 'Analyzing...' : 'Re-analyze'}</span>
                   </button>
                 </div>
+              </div>
+
+              {/* Representative-sample notice — clarifies that the controls
+                  shown are a curated key subset, not the regulation's full
+                  control catalogue, so users aren't misled into thinking these
+                  are the only controls. */}
+              <div className="mb-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200 flex items-start space-x-2">
+                <BookOpen className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  Showing <strong>{regulation.sampleControls.length} key sample control{regulation.sampleControls.length === 1 ? '' : 's'}</strong> — a representative subset selected for illustration
+                  {typeof regulation.controlStructure?.totalControlsCount === 'number' && regulation.controlStructure.totalControlsCount > regulation.sampleControls.length
+                    ? <> out of approximately <strong>{regulation.controlStructure.totalControlsCount}</strong> total controls / articles in this regulation.</>
+                    : <>.</>} This is not the complete control set.
+                </span>
               </div>
 
               {/* Minimum Confidence Level Active Filter Notice */}

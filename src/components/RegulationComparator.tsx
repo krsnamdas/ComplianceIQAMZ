@@ -772,8 +772,8 @@ ${
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="table-scroll-x">
+            <table className="w-full text-left text-xs min-w-[760px]">
               <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
                 <tr>
                   <th className="py-3 px-4">Domain &amp; Topic</th>

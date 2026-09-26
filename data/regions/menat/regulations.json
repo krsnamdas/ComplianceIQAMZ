@@ -13,7 +13,7 @@
     "status": "Enacted",
     "yearEnacted": 2018,
     "effectiveDate": "2018-10-25",
-    "lastUpdated": "2024-03-15",
+    "lastUpdated": "2026-09-26",
     "scopeSummary": "Mandatory minimum cybersecurity baseline for all government agencies and private organizations owning or operating Critical National Infrastructure (CNI) in Saudi Arabia.",
     "targetSectors": [
       "Government",
@@ -25,8 +25,8 @@
       "Cloud & Hyperscalers",
       "Healthcare"
     ],
-    "officialUrl": "https://nca.gov.sa/sites/default/files/2021-10/ECC-1-2018-EN.pdf",
-    "documentPdfUrl": "https://nca.gov.sa/sites/default/files/2021-10/ECC-1-2018-EN.pdf",
+    "officialUrl": "https://cdn.nca.gov.sa/ar/ecc-en.pdf",
+    "documentPdfUrl": "https://cdn.nca.gov.sa/ar/ecc-en.pdf",
     "controlStructure": {
       "domainsCount": 5,
       "subDomainsCount": 29,
@@ -525,13 +525,14 @@
     "status": "Enacted",
     "yearEnacted": 2023,
     "effectiveDate": "2023-06-01",
-    "lastUpdated": "2024-04-12",
+    "lastUpdated": "2026-09-26",
     "scopeSummary": "Technical licensing, telemetry cyber defense, spectrum management, and security standards for satellite operators, earth stations, and space startups.",
     "targetSectors": [
       "Space & Aerospace",
       "Telco",
       "Government",
-      "Critical Infrastructure"
+      "Critical Infrastructure",
+      "Digital Tech Startups"
     ],
     "officialUrl": "https://www.cst.gov.sa/en/Pages/default.aspx",
     "controlStructure": {
@@ -567,7 +568,11 @@
           "csaCcm": "CRY-01"
         }
       }
-    ]
+    ],
+    "enactmentPeriod": "06/2023",
+    "auditFrequency": "Annually",
+    "auditTimeline": "Annual Audit Cycle (Q4 Mandatory Statutory Attestation)",
+    "regulationNature": "Tech"
   },
   {
     "id": "ksa-sfda-mds-g010",
@@ -1516,7 +1521,7 @@
     "status": "Enacted",
     "yearEnacted": 2017,
     "effectiveDate": "2017-06-01",
-    "lastUpdated": "2023-12-10",
+    "lastUpdated": "2026-09-26",
     "scopeSummary": "Detailed supervisory framework governing operational risk, outsourcing to public cloud (AWS Bahrain), business continuity, and incident disclosure.",
     "targetSectors": [
       "Banking",
@@ -1561,7 +1566,11 @@
           "csaCcm": "STA-01, GRC-03"
         }
       }
-    ]
+    ],
+    "auditTimeline": "Annual Audit Cycle (Q4 Mandatory Statutory Attestation).",
+    "enactmentPeriod": "06/2017",
+    "auditFrequency": "Annually",
+    "regulationNature": "Tech"
   },
   {
     "id": "bh-ncsc-strategy",
@@ -2584,13 +2593,14 @@
     "createdDate": "2019-02-15",
     "yearEnacted": 2019,
     "effectiveDate": "2020-01-01",
-    "lastUpdated": "2023-09-12",
+    "lastUpdated": "2026-09-26",
     "scopeSummary": "Mandatory cybersecurity standard for all healthcare providers, insurers, health tech startups, and medical device operators in Abu Dhabi, enforcing strict medical data localization.",
     "targetSectors": [
       "Healthcare",
       "Insurance",
       "Cloud & Hyperscalers",
-      "Digital Tech Startups"
+      "Digital Tech Startups",
+      "Critical Infrastructure"
     ],
     "officialUrl": "https://www.doh.gov.ae/en/programs-initiatives/adhics",
     "controlStructure": {
@@ -2644,7 +2654,11 @@
           "csaCcm": "IVS-07, DCS-02"
         }
       }
-    ]
+    ],
+    "auditTimeline": "Annual Audit Cycle (Q4 Mandatory Statutory Attestation).",
+    "enactmentPeriod": "01/2020",
+    "auditFrequency": "Annually",
+    "regulationNature": "Tech"
   },
   {
     "id": "uae-vara-tech",
@@ -3672,12 +3686,12 @@
     "category": "tech_data_privacy",
     "categoryLabel": "Data Privacy & Consumer Rights",
     "isTech": true,
-    "status": "Enacted",
+    "status": "Amended",
     "currentVersion": "1.0",
     "createdDate": "2023-09-17",
     "yearEnacted": 2023,
     "effectiveDate": "2024-03-17",
-    "lastUpdated": "2024-04-10",
+    "lastUpdated": "2026-09-26",
     "scopeSummary": "Enacted in September 2023 and entering into force in March 2024; establishes individual consent principles, mandatory Data Protection Officer appointments, and cross-border transfer rules.",
     "targetSectors": [
       "Banking",
@@ -3729,7 +3743,11 @@
           "csaCcm": "DSP-01, DSP-02"
         }
       }
-    ]
+    ],
+    "auditTimeline": "Annual Audit Cycle (Q4 Mandatory Statutory Attestation).",
+    "enactmentPeriod": "03/2024",
+    "auditFrequency": "Annually",
+    "regulationNature": "Tech"
   },
   {
     "id": "jordan-cybercrime-17",
@@ -4358,7 +4376,7 @@
     "createdDate": "2020-01-20",
     "yearEnacted": 2020,
     "effectiveDate": "2020-01-20",
-    "lastUpdated": "2023-10-30",
+    "lastUpdated": "2026-09-26",
     "scopeSummary": "Mandates classification of vital national operators (OIVs) across Oil & Gas (Sonatrach), Energy (Sonelgaz), Telecommunications, and Finance, enforcing sovereign security audits.",
     "targetSectors": [
       "Oil & Gas",
@@ -4410,7 +4428,11 @@
           "csaCcm": "IVS-06, IVS-07"
         }
       }
-    ]
+    ],
+    "auditTimeline": "Annual Audit Cycle (Q4 Mandatory Statutory Attestation).",
+    "enactmentPeriod": "01/2020",
+    "auditFrequency": "Annually",
+    "regulationNature": "Tech"
   },
   {
     "id": "algeria-cybercrime-0904",
@@ -4428,7 +4450,7 @@
     "createdDate": "2009-08-05",
     "yearEnacted": 2009,
     "effectiveDate": "2009-08-05",
-    "lastUpdated": "2023-06-25",
+    "lastUpdated": "2026-09-26",
     "scopeSummary": "Prescribes penal measures for hacking, unauthorized access to national defense informatics, electronic funds theft, and mandates technical cooperation from ISPs and telecom operators.",
     "targetSectors": [
       "Banking",
@@ -4476,10 +4498,14 @@
           "csaCcm": "LOG-01"
         }
       }
-    ]
+    ],
+    "auditTimeline": "Annual Audit Cycle (Q4 Mandatory Statutory Attestation)",
+    "enactmentPeriod": "08/2009",
+    "auditFrequency": "Annually",
+    "regulationNature": "Non-Tech"
   },
   {
-    "id": "uae-cbuae-open-fin",
+    "id": "uae-cbuae-open-fin-2024",
     "code": "CBUAE-OF-2024",
     "name": "Central Bank of the UAE Open Finance Framework & Technical Specifications",
     "arabicName": "إطار ونظام التمويل المفتوح والمواصفات الفنية لمصرف الإمارات العربية المتحدة المركزي",
@@ -4552,7 +4578,7 @@
     ]
   },
   {
-    "id": "uae-difc-dp-2020",
+    "id": "uae-difc-dp-2020-ai",
     "code": "DIFC Law No. 5 of 2020",
     "name": "Dubai International Financial Centre Data Protection Law & 2023 AI Amendments",
     "arabicName": "قانون حماية البيانات لمركز دبي المالي العالمي رقم 5 لسنة 2020 وتعديلاته الخاصة بالذكاء الاصطناعي",
@@ -4634,7 +4660,7 @@
     ]
   },
   {
-    "id": "uae-tdra-cloud-sec",
+    "id": "uae-tdra-csp-2022",
     "code": "TDRA-CSP-2022",
     "name": "TDRA Cloud Service Provider (CSP) Mandatory Security Assurance & Tenant Protection Standard",
     "arabicName": "معيار هيئة تنظيم الاتصالات والحكومة الرقمية لضمان أمن مزودي الخدمات السحابية وحماية المشتركين",
@@ -4706,7 +4732,7 @@
     ]
   },
   {
-    "id": "uae-cbuae-enabling-tech",
+    "id": "uae-cbuae-enabling-tech-ai",
     "code": "CBUAE-ET-2023",
     "name": "CBUAE Guidelines for Financial Institutions Adopting Enabling Technologies (AI, Cloud, Blockchain)",
     "arabicName": "إرشادات مصرف الإمارات المركزي للمؤسسات المالية لتبني التقنيات التمكينية (الذكاء الاصطناعي، الحوسبة السحابية، والبلوك تشين)",
@@ -5208,13 +5234,14 @@
     "yearEnacted": 2018,
     "createdDate": "2018-09-12",
     "effectiveDate": "2018-12-01",
-    "lastUpdated": "2022-08-10",
+    "lastUpdated": "2026-09-26",
     "scopeSummary": "Standards mandating end-to-end encryption for electronic wallets, two-factor authentication, SWIFT Customer Security Programme (CSP) compliance, and audit logging.",
     "targetSectors": [
       "Banking",
       "Payments",
       "Fintech",
-      "Telco"
+      "Telco",
+      "Cloud & Hyperscalers"
     ],
     "officialUrl": "https://cby-ye.com/",
     "controlStructure": {
@@ -5248,7 +5275,11 @@
           "csaCcm": "NW-01"
         }
       }
-    ]
+    ],
+    "enactmentPeriod": "12/2018",
+    "auditFrequency": "Annually",
+    "auditTimeline": "Annual Audit Cycle (Q4 Mandatory Statutory Attestation)",
+    "regulationNature": "Tech"
   },
   {
     "id": "dj-law-177-data-protection",

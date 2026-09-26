@@ -625,10 +625,10 @@ export const LinkIntegrityTab: React.FC = () => {
               onClick={() => runLinkAudit()}
               disabled={isLinkAuditRunning || isScanning}
               className="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 flex items-center space-x-2 transition-all cursor-pointer disabled:opacity-50"
-              title="Trigger immediate background audit across all statutory URLs and PDFs"
+              title="Verify that every regulation's official portal URL and PDF gazette link is reachable (updates the Verified / Unverified / Not checked status on each regulation)"
             >
               <RefreshCw className={`w-4 h-4 text-cyan-400 ${isLinkAuditRunning ? 'animate-spin' : ''}`} />
-              <span>{isLinkAuditRunning ? 'Probing Daemon...' : 'Daemon Reachability Probe'}</span>
+              <span>{isLinkAuditRunning ? 'Verifying Links...' : 'Verify Links'}</span>
             </button>
 
             <button

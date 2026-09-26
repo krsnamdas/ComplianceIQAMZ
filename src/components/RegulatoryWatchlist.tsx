@@ -142,6 +142,30 @@ export const RegulatoryWatchlist: React.FC<RegulatoryWatchlistProps> = ({
     return allRegulations.filter((r) => pinMap.has(r.id));
   }, [allRegulations, pinMap]);
 
+  // In-page "Pin a Regulation" picker state + the list of still-unpinned regs
+  // (derived from the real registry, so options are always valid & react live).
+  const [pinPickerOpen, setPinPickerOpen] = useState(false);
+  const [pinPickerSearch, setPinPickerSearch] = useState('');
+
+  const unpinnedRegulations = useMemo(
+    () => allRegulations.filter((r) => !pinMap.has(r.id)),
+    [allRegulations, pinMap]
+  );
+
+  const pinPickerResults = useMemo(() => {
+    const q = pinPickerSearch.trim().toLowerCase();
+    const list = q
+      ? unpinnedRegulations.filter(
+          (r) =>
+            r.name.toLowerCase().includes(q) ||
+            r.code.toLowerCase().includes(q) ||
+            (r.authority || '').toLowerCase().includes(q) ||
+            (r.countryId || '').toLowerCase().includes(q)
+        )
+      : unpinnedRegulations;
+    return list.slice(0, 50);
+  }, [unpinnedRegulations, pinPickerSearch]);
+
   // Filtered pinned regulations
   const filteredPinnedRegulations = useMemo(() => {
     return pinnedRegulations.filter((reg) => {
@@ -287,15 +311,34 @@ export const RegulatoryWatchlist: React.FC<RegulatoryWatchlistProps> = ({
     }
   };
 
-  // Quick recommended regulations to add when empty
-  const recommendedRegulations = [
-    { id: 'ksa-ecc-1', code: 'NCA ECC-1:2018', name: 'Essential Cybersecurity Controls', flag: '🇸🇦', country: 'Saudi Arabia' },
-    { id: 'uae-desc-isr-1', code: 'DESC ISR:2023', name: 'Information Security Regulation', flag: '🇦🇪', country: 'United Arab Emirates' },
-    { id: 'ksa-pdpl-1', code: 'Saudi PDPL', name: 'Personal Data Protection Law', flag: '🇸🇦', country: 'Saudi Arabia' },
-    { id: 'tur-kvkk-1', code: 'KVKK Law 6698', name: 'Protection of Personal Data Law', flag: '🇹🇷', country: 'Türkiye' },
-    { id: 'qatar-ncsa-ncf', code: 'Qatar NCF v2.0', name: 'National Cyber Security Framework', flag: '🇶🇦', country: 'Qatar' },
-    { id: 'uae-difc-dp-1', code: 'DIFC DP Law 5/2020', name: 'DIFC Data Protection Law', flag: '🇦🇪', country: 'United Arab Emirates' },
-  ];
+  // Quick recommended regulations to add when empty — derived from the REAL
+  // registry (unpinned regs) so every card resolves to a valid regulation and
+  // pins instantly. Previously these were hardcoded IDs, several of which no
+  // longer existed, so clicking "Pin" did nothing.
+  const recommendedRegulations = useMemo(() => {
+    const flagFor = (countryId: string) =>
+      countries.find((c) => c.id === countryId)?.flag || '🌐';
+    const nameFor = (countryId: string) =>
+      countries.find((c) => c.id === countryId)?.name || countryId.toUpperCase();
+    // Prefer a spread across jurisdictions for the 6 suggestions.
+    const seen = new Set<string>();
+    const spread: Regulation[] = [];
+    for (const r of unpinnedRegulations) {
+      if (!seen.has(r.countryId)) {
+        seen.add(r.countryId);
+        spread.push(r);
+      }
+      if (spread.length >= 6) break;
+    }
+    const picks = spread.length >= 6 ? spread : unpinnedRegulations.slice(0, 6);
+    return picks.map((r) => ({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      flag: flagFor(r.countryId),
+      country: nameFor(r.countryId),
+    }));
+  }, [unpinnedRegulations, countries]);
 
   return (
     <div className="space-y-6">
@@ -447,17 +490,119 @@ export const RegulatoryWatchlist: React.FC<RegulatoryWatchlistProps> = ({
               </button>
             )}
 
-            {onNavigateToRegistry && (
-              <button
-                onClick={onNavigateToRegistry}
-                className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center space-x-1.5 transition-all shadow-md cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Pin More Regulations</span>
-              </button>
-            )}
+            {/* Primary: pin a regulation right here without leaving the page */}
+            <button
+              onClick={() => {
+                if (!canManageWatchlist) {
+                  triggerRestrictedAction(
+                    'Pin / Manage Watchlist',
+                    'Adding regulations to your watchlist requires the Compliance Manager role. Analysts have view-only access.'
+                  );
+                  return;
+                }
+                setPinPickerOpen((o) => !o);
+                setPinPickerSearch('');
+              }}
+              className={`px-3.5 py-2 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-all shadow-md cursor-pointer ${
+                pinPickerOpen
+                  ? 'bg-emerald-700 text-white ring-2 ring-emerald-400/40'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+              }`}
+              title="Pin a regulation to your watchlist"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Pin a Regulation</span>
+            </button>
           </div>
         </div>
+
+        {/* Inline "Pin a Regulation" picker — searchable, adds without navigating away */}
+        {pinPickerOpen && (
+          <div className="mt-4 bg-slate-950/70 border border-emerald-500/30 rounded-xl p-4 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-1.5">
+                <Bookmark className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Pin a Regulation to Your Watchlist</span>
+              </h4>
+              <button
+                onClick={() => setPinPickerOpen(false)}
+                className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                aria-label="Close pin picker"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="relative mb-3">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                autoFocus
+                value={pinPickerSearch}
+                onChange={(e) => setPinPickerSearch(e.target.value)}
+                placeholder="Search by regulation name, code, authority, or country…"
+                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {unpinnedRegulations.length === 0 ? (
+              <p className="text-xs text-slate-400 py-3 text-center">
+                All regulations are already pinned to your watchlist.
+              </p>
+            ) : pinPickerResults.length === 0 ? (
+              <p className="text-xs text-slate-400 py-3 text-center">
+                No unpinned regulations match &quot;{pinPickerSearch}&quot;.
+              </p>
+            ) : (
+              <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1">
+                {pinPickerResults.map((reg) => {
+                  const country = countries.find((c) => c.id === reg.countryId);
+                  return (
+                    <div
+                      key={reg.id}
+                      className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 hover:border-emerald-500/40 transition-colors"
+                    >
+                      <div className="min-w-0 flex items-center space-x-2.5">
+                        <span className="text-base shrink-0">{country?.flag || '🌐'}</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-mono text-[11px] font-bold text-emerald-400 shrink-0">
+                              {reg.code}
+                            </span>
+                            <span className="text-[10px] text-slate-500 truncate">
+                              {country?.name || reg.countryId}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-300 truncate">{reg.name}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleGuardedTogglePin(reg.id)}
+                        className="shrink-0 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center space-x-1 transition-colors cursor-pointer"
+                        title={`Pin ${reg.code} to your watchlist`}
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Pin</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+              <span>{unpinnedRegulations.length} regulation(s) available to pin</span>
+              {onNavigateToRegistry && (
+                <button
+                  onClick={onNavigateToRegistry}
+                  className="text-emerald-400 hover:text-emerald-300 font-medium cursor-pointer"
+                >
+                  Browse full registry →
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* High-Level Metric Tiles */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6 pt-5 border-t border-slate-800">
@@ -1016,8 +1161,8 @@ export const RegulatoryWatchlist: React.FC<RegulatoryWatchlistProps> = ({
             </div>
           ) : (
             /* COMPACT MATRIX TABLE VIEW */
-            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto shadow-sm">
-              <table className="w-full text-left text-xs">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl table-scroll-x shadow-sm">
+              <table className="w-full text-left text-xs min-w-[780px]">
                 <thead className="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
                   <tr>
                     <th className="px-4 py-3">Jurisdiction</th>
