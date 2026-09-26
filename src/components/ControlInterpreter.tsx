@@ -206,7 +206,7 @@ export const ControlInterpreter: React.FC<ControlInterpreterProps> = ({
               placeholder="e.g. ECC-2-1-3, Art. 29, AIS-08"
               value={controlId}
               onChange={(e) => setControlId(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100"
+              className="w-full px-3 py-2 text-sm bg-slate-800 text-slate-100 placeholder:text-slate-400 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div>
@@ -218,7 +218,7 @@ export const ControlInterpreter: React.FC<ControlInterpreterProps> = ({
               placeholder="e.g. Saudi PDPL, NCA ECC, SAMA"
               value={regulationName}
               onChange={(e) => setRegulationName(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100"
+              className="w-full px-3 py-2 text-sm bg-slate-800 text-slate-100 placeholder:text-slate-400 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div>
@@ -228,7 +228,7 @@ export const ControlInterpreter: React.FC<ControlInterpreterProps> = ({
             <select
               value={jurisdiction}
               onChange={(e) => setJurisdiction(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100"
+              className="w-full px-3 py-2 text-sm bg-slate-800 text-slate-100 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="Saudi Arabia">Saudi Arabia (KSA)</option>
               <option value="United Arab Emirates">United Arab Emirates (UAE)</option>
@@ -249,7 +249,7 @@ export const ControlInterpreter: React.FC<ControlInterpreterProps> = ({
             <select
               value={cloudModelTarget}
               onChange={(e) => setCloudModelTarget(e.target.value as any)}
-              className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100"
+              className="w-full px-3 py-2 text-sm bg-slate-800 text-slate-100 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="All">All Delivery Models</option>
               <option value="IaaS">Infrastructure as a Service (IaaS)</option>
@@ -274,7 +274,7 @@ export const ControlInterpreter: React.FC<ControlInterpreterProps> = ({
             placeholder="Paste your typical control or sub-control requirement here (e.g., from NCA ECC, SAMA Framework, UAE ISR, Saudi PDPL, Central Bank Circular, or internal audit charter)..."
             value={controlText}
             onChange={(e) => setControlText(e.target.value)}
-            className="w-full px-4 py-3 text-sm font-sans bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100 placeholder:text-slate-400 leading-relaxed"
+            className="w-full px-4 py-3 text-sm font-sans bg-slate-800 text-slate-100 placeholder:text-slate-400 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed"
             required
           />
         </div>

@@ -460,8 +460,8 @@ export const TimelineManagerTab: React.FC = () => {
 
       {/* Timeline Events Table / List */}
       <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="table-scroll-x">
+          <table className="w-full text-left text-xs border-collapse min-w-[820px]">
             <thead className="bg-slate-950 text-slate-400 font-mono text-[11px] uppercase border-b border-slate-800">
               <tr>
                 <th className="py-3 px-4 w-44 shrink-0">Jurisdiction &amp; Authority</th>

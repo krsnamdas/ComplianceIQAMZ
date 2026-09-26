@@ -271,8 +271,8 @@ export const AuditTrailTab: React.FC = () => {
 
       {/* Activity Log Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="table-scroll-x">
+          <table className="w-full text-left text-xs min-w-[820px]">
             <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
               <tr>
                 <th className="py-3 px-4">Timestamp (UTC)</th>

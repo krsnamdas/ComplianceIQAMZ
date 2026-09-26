@@ -525,10 +525,24 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return 'sasuser1'; // Default persona when authenticated
   });
 
-  const activeUser = users.find((u) => u.id === currentUserId) || users[0] || INITIAL_USERS[0];
-  const currentUser = isAuthenticated ? activeUser : GUEST_USER;
+  // Memoized so a fresh object identity isn't handed to consumers on every
+  // unrelated state change (e.g. editing a regulation). Stable identity prevents
+  // App-level navigation effects from re-firing spuriously.
+  // Resolve to the real user profile whenever the session is authenticated OR
+  // the admin console has been unlocked via the password gateway. Treating an
+  // unlocked admin console as a resolved session keeps isCurrentUserAdmin stable
+  // during the re-render that a regulation edit triggers, so the App-level
+  // navigation guards don't bounce the admin out of the console.
+  const currentUser = useMemo(
+    () =>
+      isAuthenticated || isAdminUnlocked
+        ? users.find((u) => u.id === currentUserId) || users[0] || INITIAL_USERS[0]
+        : GUEST_USER,
+    [isAuthenticated, isAdminUnlocked, users, currentUserId]
+  );
   const isGuest = !isAuthenticated;
-  const isCurrentUserAdmin = isAuthenticated && (currentUser.isAdmin || currentUser.role === 'admin');
+  const isCurrentUserAdmin =
+    (isAuthenticated || isAdminUnlocked) && (currentUser.isAdmin || currentUser.role === 'admin');
 
   // 2. Feature Flags State
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(() => {
@@ -558,15 +572,31 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
   }, []);
 
+  // Defensive: collapse any regulations that share the same id, keeping the
+  // first occurrence. A stale localStorage cache (or bad data) with duplicate
+  // ids otherwise causes React "two children with the same key" warnings and
+  // double-rendered rows. Applied wherever regulations enter state.
+  const dedupeRegulationsById = (regs: Regulation[]): Regulation[] => {
+    const seen = new Set<string>();
+    const out: Regulation[] = [];
+    for (const r of regs) {
+      if (r && !seen.has(r.id)) {
+        seen.add(r.id);
+        out.push(r);
+      }
+    }
+    return out;
+  };
+
   // 3. Dynamic Regulations State
-  const [regulations, setRegulations] = useState<Regulation[]>(() => {
+  const [regulations, setRegulationsRaw] = useState<Regulation[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.REGULATIONS);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           // Self-healing migration for outdated cached URLs
-          return parsed.map((r: Regulation) => {
+          return dedupeRegulationsById(parsed.map((r: Regulation) => {
             if (r.id === 'ksa-pdpl') {
               return {
                 ...r,
@@ -589,14 +619,23 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               };
             }
             return r;
-          });
+          }));
         }
       }
     } catch (e) {
       console.error('Error loading regulations:', e);
     }
-    return MENAT_REGULATIONS;
+    return dedupeRegulationsById(MENAT_REGULATIONS);
   });
+
+  // Always dedupe by id whenever regulations are set, so no code path (server
+  // hydrate, edits, backup restore) can ever introduce duplicate-key rows.
+  const setRegulations: React.Dispatch<React.SetStateAction<Regulation[]>> = (value) => {
+    setRegulationsRaw((prev) => {
+      const next = typeof value === 'function' ? (value as (p: Regulation[]) => Regulation[])(prev) : value;
+      return dedupeRegulationsById(next);
+    });
+  };
 
   // 3a. Hydrate regulations from the server (file-backed source of truth).
   // The region JSON file (data/regions/<REGION>/regulations.json) is authoritative;
@@ -1373,8 +1412,15 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       (currentUser.isAdmin && clean === currentUser.password)
     ) {
       setIsAdminUnlocked(true);
+      // Unlocking the admin console with a valid password is an authenticated
+      // action. Mark the session authenticated so `isCurrentUserAdmin`
+      // (= isAuthenticated && isAdmin) is consistent with the unlocked state.
+      // Without this, App-level guards saw isAuthenticated=false and bounced the
+      // admin out of the console back to Overview on the next re-render.
+      setIsAuthenticated(true);
       try {
         sessionStorage.setItem(STORAGE_KEYS.ADMIN_UNLOCKED, 'true');
+        localStorage.setItem(STORAGE_KEYS.AUTH_STATE, 'true');
       } catch {
         // ignore
       }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import { Regulation, RegulatoryCategory, SectorType, AuditFrequency, RegulationNature } from '../../types/regulatory';
+import { Regulation, RegulatoryCategory, SectorType, AuditFrequency, RegulationNature, ControlDetail } from '../../types/regulatory';
 import {
   AUDIT_FREQUENCY_OPTIONS,
   REGULATION_NATURE_OPTIONS,
@@ -177,6 +177,17 @@ export const RegulationEditorTab: React.FC = () => {
     const freq = editingRegulation.auditFrequency || 'Annually';
     const nature = editingRegulation.regulationNature || (editingRegulation.isTech ? 'Tech' : 'Non-Tech');
 
+    // Keep the headline "Total Controls / Articles" count consistent: it should
+    // never be smaller than the number of authored sample controls.
+    const authoredCount = editingRegulation.sampleControls?.length || 0;
+    const existingTotal = editingRegulation.controlStructure?.totalControlsCount ?? 0;
+    const reconciledControlStructure = editingRegulation.controlStructure
+      ? {
+          ...editingRegulation.controlStructure,
+          totalControlsCount: Math.max(existingTotal, authoredCount),
+        }
+      : editingRegulation.controlStructure;
+
     const updated: Regulation = {
       ...editingRegulation,
       enactmentPeriod: normalizedPeriod,
@@ -184,6 +195,7 @@ export const RegulationEditorTab: React.FC = () => {
       auditTimeline: editingRegulation.auditTimeline || getAuditTimelineDefault(freq),
       regulationNature: nature,
       isTech: nature === 'Tech' || nature === 'Hybrid',
+      controlStructure: reconciledControlStructure,
     };
 
     updateRegulation(editingRegulation.id, updated);
@@ -349,8 +361,8 @@ export const RegulationEditorTab: React.FC = () => {
 
       {/* Regulations Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="table-scroll-x">
+          <table className="w-full text-left text-xs min-w-[900px]">
             <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
               <tr>
                 <th className="py-3 px-4 w-32 shrink-0 whitespace-nowrap">Jurisdiction &amp; Code</th>
@@ -936,6 +948,186 @@ export const RegulationEditorTab: React.FC = () => {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* ============================================================
+                  MANAGE CONTROLS — add / edit / remove the granular controls
+                  (with NIST CSF / ISO 27001 / CSA CCM crosswalk mappings) that
+                  render on the public regulation card. Persisted via
+                  updateRegulation, exactly like the fields above.
+                  ============================================================ */}
+              <div className="pt-3 border-t border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <label className="block font-semibold text-slate-200">
+                      Granular Controls &amp; Global Mappings
+                      <span className="ml-2 text-[10px] font-mono font-bold text-cyan-300 bg-cyan-900/50 px-1.5 py-0.5 rounded border border-cyan-700/50">
+                        {(editingRegulation.sampleControls?.length || 0)} authored
+                      </span>
+                    </label>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      These are the fully-mapped sample controls shown on the regulation card. Total control count is {editingRegulation.controlStructure?.totalControlsCount ?? 0}.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const existing = editingRegulation.sampleControls || [];
+                      const seq = existing.length + 1;
+                      const newControl: ControlDetail = {
+                        id: `ctrl-${editingRegulation.id}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                        code: '',
+                        domainNumber: String(seq),
+                        domainName: 'General',
+                        subDomainName: '',
+                        title: '',
+                        description: '',
+                        clauseReference: '',
+                        mandatoryLevel: 'Mandatory',
+                        applicableSectors: [],
+                        mapping: { nistCsf: '', iso27001: '', csaCcm: '' },
+                      };
+                      setEditingRegulation({
+                        ...editingRegulation,
+                        sampleControls: [...existing, newControl],
+                      });
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center space-x-1.5 cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Control</span>
+                  </button>
+                </div>
+
+                {(!editingRegulation.sampleControls || editingRegulation.sampleControls.length === 0) ? (
+                  <div className="p-3 rounded-lg bg-slate-950/60 border border-dashed border-slate-800 text-center text-[11px] text-slate-500">
+                    No granular controls authored yet. Click "Add Control" to create the first fully-mapped control.
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[22rem] overflow-y-auto pr-1">
+                    {editingRegulation.sampleControls.map((ctrl, idx) => {
+                      const updateCtrl = (changes: Partial<ControlDetail>) => {
+                        const next = (editingRegulation.sampleControls || []).map((c, i) =>
+                          i === idx ? { ...c, ...changes } : c
+                        );
+                        setEditingRegulation({ ...editingRegulation, sampleControls: next });
+                      };
+                      const updateMapping = (changes: Partial<ControlDetail['mapping']>) => {
+                        updateCtrl({ mapping: { ...ctrl.mapping, ...changes } });
+                      };
+                      const removeCtrl = () => {
+                        const next = (editingRegulation.sampleControls || []).filter((_, i) => i !== idx);
+                        setEditingRegulation({ ...editingRegulation, sampleControls: next });
+                      };
+                      return (
+                        <div key={ctrl.id} className="p-3 rounded-lg bg-slate-950/70 border border-slate-800 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-mono font-bold text-slate-500">Control #{idx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={removeCtrl}
+                              title="Remove this control"
+                              className="p-1 rounded text-slate-500 hover:text-rose-300 hover:bg-rose-950/40 cursor-pointer transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-400 mb-0.5">Control Code</label>
+                              <input
+                                type="text"
+                                value={ctrl.code}
+                                onChange={(e) => updateCtrl({ code: e.target.value })}
+                                placeholder="e.g. ECC-2-1-3"
+                                className="w-full px-2 py-1 rounded bg-slate-900 border border-slate-700 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-400 mb-0.5">Clause Reference</label>
+                              <input
+                                type="text"
+                                value={ctrl.clauseReference}
+                                onChange={(e) => updateCtrl({ clauseReference: e.target.value })}
+                                placeholder="e.g. Article 29(2)"
+                                className="w-full px-2 py-1 rounded bg-slate-900 border border-slate-700 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-400 mb-0.5">Mandatory Level</label>
+                              <select
+                                value={ctrl.mandatoryLevel}
+                                onChange={(e) => updateCtrl({ mandatoryLevel: e.target.value as ControlDetail['mandatoryLevel'] })}
+                                className="w-full px-2 py-1 rounded bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                              >
+                                <option value="Mandatory">Mandatory</option>
+                                <option value="Recommended">Recommended</option>
+                                <option value="Conditional">Conditional</option>
+                                <option value="Guideline">Guideline</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-400 mb-0.5">Title</label>
+                            <input
+                              type="text"
+                              value={ctrl.title}
+                              onChange={(e) => updateCtrl({ title: e.target.value })}
+                              placeholder="Short control title"
+                              className="w-full px-2 py-1 rounded bg-slate-900 border border-slate-700 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-400 mb-0.5">Verbatim Description</label>
+                            <textarea
+                              rows={2}
+                              value={ctrl.description}
+                              onChange={(e) => updateCtrl({ description: e.target.value })}
+                              placeholder="Full text of the control / sub-control requirement"
+                              className="w-full px-2 py-1 rounded bg-slate-900 border border-slate-700 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 leading-relaxed"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1 border-t border-slate-800/70">
+                            <div>
+                              <label className="block text-[10px] font-semibold text-blue-300 mb-0.5">NIST CSF Mapping</label>
+                              <input
+                                type="text"
+                                value={ctrl.mapping.nistCsf || ''}
+                                onChange={(e) => updateMapping({ nistCsf: e.target.value })}
+                                placeholder="e.g. PR.AC-01, GV.OC-01"
+                                className="w-full px-2 py-1 rounded bg-slate-900 border border-blue-500/30 text-blue-200 placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-purple-300 mb-0.5">ISO 27001 Mapping</label>
+                              <input
+                                type="text"
+                                value={ctrl.mapping.iso27001 || ''}
+                                onChange={(e) => updateMapping({ iso27001: e.target.value })}
+                                placeholder="e.g. A.5.15, A.8.20"
+                                className="w-full px-2 py-1 rounded bg-slate-900 border border-purple-500/30 text-purple-200 placeholder-slate-600 focus:outline-none focus:border-purple-500 font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-cyan-300 mb-0.5">CSA CCM Mapping</label>
+                              <input
+                                type="text"
+                                value={ctrl.mapping.csaCcm || ''}
+                                onChange={(e) => updateMapping({ csaCcm: e.target.value })}
+                                placeholder="e.g. IAM-02, CRY-01"
+                                className="w-full px-2 py-1 rounded bg-slate-900 border border-cyan-500/30 text-cyan-200 placeholder-slate-600 focus:outline-none focus:border-cyan-500 font-mono"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">

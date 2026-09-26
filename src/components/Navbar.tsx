@@ -27,7 +27,6 @@ import {
   HelpCircle,
   BellRing,
   AlertTriangle,
-  ExternalLink,
   Link2,
   ArrowRight,
   Sun,
@@ -38,7 +37,7 @@ import { useAdmin } from '../context/AdminContext';
 import { useTheme } from '../context/ThemeContext';
 import { UserAccountSwitcher } from './UserAccountSwitcher';
 import { ComplianceIQLogo } from './ComplianceIQLogo';
-import { ScraperStatus } from '../types/regulatory';
+import { ScraperStatus, WatchlistNotification } from '../types/regulatory';
 
 export type NavigationTab =
   | 'overview'
@@ -69,6 +68,14 @@ interface NavbarProps {
   totalRegulations: number;
   watchlistCount?: number;
   unreadNotificationsCount?: number;
+  /** Real per-user watchlist notifications rendered in the bell popover. */
+  notifications?: WatchlistNotification[];
+  /** Dismiss a single notification (durable, per-user). */
+  onDismissNotification?: (notificationId: string) => void;
+  /** Dismiss every currently visible notification at once. */
+  onDismissAllNotifications?: () => void;
+  /** Navigate to the specific regulation behind a notification. */
+  onViewNotificationRegulation?: (regulationId: string) => void;
   scraperStatus?: ScraperStatus;
 }
 
@@ -101,11 +108,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   totalRegulations,
   watchlistCount = 0,
   unreadNotificationsCount = 0,
+  notifications = [],
+  onDismissNotification,
+  onDismissAllNotifications,
+  onViewNotificationRegulation,
   scraperStatus,
 }) => {
   const { canTriggerScraper, triggerRestrictedAction } = useRBAC();
-  const { featureFlags, isCurrentUserAdmin, isAuthenticated, linkSuggestions = [] } = useAdmin();
-  const { brightMode, toggleBrightMode } = useTheme();
+  const { featureFlags, isCurrentUserAdmin, isAuthenticated, currentUser, linkSuggestions = [] } = useAdmin();
+  const { isLight, toggleTheme } = useTheme();
 
   // Active open dropdown in desktop menu
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -114,6 +125,50 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isBellOpen, setIsBellOpen] = useState(false);
   const navRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
+
+  // Per-admin dismissed operational-reminder cards. The admin bell shows a
+  // small set of static operational reminders (link queue, link-integrity
+  // audit, scraper daemon); each can be dismissed with an X and the choice is
+  // persisted per-admin so it doesn't reappear or leak across accounts.
+  const adminDismissedKey = (uid?: string | null) =>
+    `menat_admin_dismissed_reminders_v1::${uid || 'admin'}`;
+  const [adminDismissedIds, setAdminDismissedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(adminDismissedKey(currentUser?.id));
+      setAdminDismissedIds(raw ? new Set(JSON.parse(raw)) : new Set());
+    } catch {
+      setAdminDismissedIds(new Set());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
+  const dismissAdminReminder = (id: string) => {
+    setAdminDismissedIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        localStorage.setItem(adminDismissedKey(currentUser?.id), JSON.stringify(Array.from(next)));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const dismissAllAdminReminders = (ids: string[]) => {
+    setAdminDismissedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      try {
+        localStorage.setItem(adminDismissedKey(currentUser?.id), JSON.stringify(Array.from(next)));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -523,29 +578,29 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Action Buttons & Simulated IAM User Switcher */}
           <div className="flex items-center space-x-2 shrink-0">
-            {/* Brighter Display Mode Toggle */}
+            {/* Dark / Light Theme Toggle */}
             <button
               type="button"
-              onClick={toggleBrightMode}
+              onClick={toggleTheme}
               role="switch"
-              aria-checked={brightMode}
-              aria-label={brightMode ? 'Switch to standard display' : 'Switch to brighter display'}
-              title={brightMode ? 'Brighter mode: ON — click for standard view' : 'Brighter mode: OFF — click for a brighter view'}
+              aria-checked={isLight}
+              aria-label={isLight ? 'Switch to dark theme' : 'Switch to light theme'}
+              title={isLight ? 'Light theme — click for dark' : 'Dark theme — click for light'}
               className={`relative flex items-center h-8 w-[52px] rounded-full border transition-colors duration-300 cursor-pointer shrink-0 ${
-                brightMode
-                  ? 'bg-amber-400/20 border-amber-400/50'
+                isLight
+                  ? 'bg-amber-400/25 border-amber-400/50'
                   : 'bg-slate-800 border-slate-700 hover:bg-slate-700'
               }`}
             >
               {/* Sliding knob */}
               <span
                 className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 rounded-full shadow-md transition-all duration-300 ${
-                  brightMode
+                  isLight
                     ? 'left-[22px] bg-amber-300 text-amber-900'
-                    : 'left-1 bg-slate-600 text-slate-200'
+                    : 'left-1 bg-slate-600 text-slate-100'
                 }`}
               >
-                {brightMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                {isLight ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
               </span>
             </button>
 
@@ -570,9 +625,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Tailored Watchlist & Compliance Reminders Bell Popover */}
             {featureFlags.watchlistAlerts && (() => {
               const pendingLinkSuggestionsCount = linkSuggestions.filter((s) => s.status === 'pending').length;
-              const adminAlertCount = (pendingLinkSuggestionsCount > 0 ? pendingLinkSuggestionsCount : 0) + 3;
-              const normalUserAlertCount = unreadNotificationsCount > 0 ? unreadNotificationsCount : 4;
-              const displayAlertCount = isCurrentUserAdmin ? adminAlertCount : normalUserAlertCount;
+              // Admin badge reflects the number of visible (non-dismissed)
+              // operational reminder cards, so dismissing them updates the badge
+              // and it reaches 0 when all are cleared.
+              const adminReminderIds = ['admin-link-queue', 'admin-link-audit', 'admin-scraper'];
+              const adminVisibleReminderCount = adminReminderIds.filter((id) => !adminDismissedIds.has(id)).length;
+              // Normal-user badge reflects the REAL per-user notification list.
+              // When the user has dismissed everything (or has no pins), the
+              // badge disappears — no more hardcoded fallback count.
+              const normalUserAlertCount = notifications.length;
+              const displayAlertCount = isCurrentUserAdmin ? adminVisibleReminderCount : normalUserAlertCount;
 
               return (
                 <div ref={bellRef} className="relative">
@@ -626,200 +688,190 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {/* Reminder Items */}
                       <div className="max-h-80 overflow-y-auto p-2 space-y-2 text-xs">
                         {isCurrentUserAdmin ? (
-                          // ADMIN NOTIFICATIONS
-                          <>
-                            {/* Link Suggestions Queue */}
-                            <div className="p-2.5 rounded-lg bg-indigo-950/40 border border-indigo-500/40 hover:bg-indigo-950/60 transition-colors">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-start space-x-2">
-                                  <Link2 className="w-4 h-4 text-indigo-400 mt-0.5 shrink-0" />
-                                  <div>
-                                    <div className="font-semibold text-white">
-                                      User Link Submissions ({pendingLinkSuggestionsCount} Pending)
+                          // ADMIN OPERATIONAL REMINDERS (dismissible, per-admin)
+                          (() => {
+                            const adminReminders = [
+                              {
+                                id: 'admin-link-queue',
+                                Icon: Link2,
+                                iconColor: 'text-indigo-400',
+                                box: 'bg-indigo-950/40 border-indigo-500/40 hover:bg-indigo-950/60',
+                                border: 'border-indigo-500/30',
+                                actionColor: 'text-indigo-300',
+                                title: `User Link Submissions (${pendingLinkSuggestionsCount} Pending)`,
+                                body: 'Compliance analysts submitted link updates for official gazettes/portals.',
+                                actionLabel: 'Review in Link Integrity',
+                                onAction: () => { handleSelectTab('admin'); setIsBellOpen(false); },
+                              },
+                              {
+                                id: 'admin-link-audit',
+                                Icon: AlertTriangle,
+                                iconColor: 'text-amber-400',
+                                box: 'bg-amber-950/40 border-amber-500/40 hover:bg-amber-950/60',
+                                border: 'border-amber-500/30',
+                                actionColor: 'text-amber-300',
+                                title: 'Statutory Link Integrity Audit',
+                                body: '3 regulations require official link updates or secondary PDF gazette confirmation.',
+                                actionLabel: 'Audit Regulatory Links',
+                                onAction: () => { handleSelectTab('admin'); setIsBellOpen(false); },
+                              },
+                              {
+                                id: 'admin-scraper',
+                                Icon: RefreshCw,
+                                iconColor: 'text-emerald-400',
+                                box: 'bg-slate-950/60 border-slate-800 hover:border-slate-700',
+                                border: 'border-slate-800',
+                                actionColor: 'text-emerald-400',
+                                title: 'Weekly Scraper Daemon',
+                                body: 'Scheduled crawler crawls 51 official portals across 24 MENAT jurisdictions. Probes every 12h.',
+                                actionLabel: 'View Tracked Sources',
+                                onAction: () => { handleSelectTab('sources'); setIsBellOpen(false); },
+                              },
+                            ].filter((r) => !adminDismissedIds.has(r.id));
+
+                            if (adminReminders.length === 0) {
+                              return (
+                                <div className="py-8 px-4 text-center">
+                                  <BellRing className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                                  <div className="text-xs font-semibold text-slate-300">No operational reminders</div>
+                                  <p className="text-[11px] text-slate-500 mt-1">
+                                    All administrative reminders have been dismissed. New link submissions,
+                                    integrity flags and crawler events will appear here.
+                                  </p>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <>
+                                {adminReminders.map((r) => {
+                                  const Icon = r.Icon;
+                                  return (
+                                    <div key={r.id} className={`p-2.5 rounded-lg border transition-colors ${r.box}`}>
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-start space-x-2 min-w-0">
+                                          <Icon className={`w-4 h-4 ${r.iconColor} mt-0.5 shrink-0`} />
+                                          <div className="min-w-0">
+                                            <div className="font-semibold text-white">{r.title}</div>
+                                            <p className="text-[11px] text-slate-300 mt-0.5">{r.body}</p>
+                                          </div>
+                                        </div>
+                                        {/* Per-reminder dismiss (X) */}
+                                        <button
+                                          type="button"
+                                          title="Dismiss this reminder"
+                                          aria-label="Dismiss reminder"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            dismissAdminReminder(r.id);
+                                          }}
+                                          className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800/80 shrink-0 cursor-pointer transition-colors"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                      <div className={`mt-2 pt-2 border-t ${r.border} flex justify-end`}>
+                                        <button
+                                          type="button"
+                                          onClick={r.onAction}
+                                          className={`text-[11px] font-bold ${r.actionColor} hover:text-white flex items-center space-x-1 cursor-pointer`}
+                                        >
+                                          <span>{r.actionLabel}</span>
+                                          <ArrowRight className="w-3 h-3" />
+                                        </button>
+                                      </div>
                                     </div>
-                                    <p className="text-[11px] text-slate-300 mt-0.5">
-                                      Compliance analysts submitted link updates for official gazettes/portals.
-                                    </p>
+                                  );
+                                })}
+                              </>
+                            );
+                          })()
+                        ) : notifications.length === 0 ? (
+                          // NORMAL USER — EMPTY STATE (no pins or all dismissed)
+                          <div className="py-8 px-4 text-center">
+                            <BellRing className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                            <div className="text-xs font-semibold text-slate-300">You're all caught up</div>
+                            <p className="text-[11px] text-slate-500 mt-1">
+                              No active compliance alerts. Pin regulations in your Watchlist to receive
+                              tailored deadline, amendment and enforcement notifications.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleSelectTab('watchlist');
+                                setIsBellOpen(false);
+                              }}
+                              className="mt-3 text-[11px] font-bold text-indigo-300 hover:text-white inline-flex items-center space-x-1 cursor-pointer"
+                            >
+                              <span>Open Watchlist</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          // NORMAL USER — REAL PER-USER NOTIFICATIONS
+                          <>
+                            {notifications.map((n) => {
+                              const urgencyStyle =
+                                n.urgency === 'Critical'
+                                  ? { box: 'bg-rose-950/40 border-rose-500/40 hover:bg-rose-950/60', border: 'border-rose-500/30', text: 'text-rose-300', icon: 'text-rose-400', Icon: ShieldAlert }
+                                  : n.urgency === 'High'
+                                  ? { box: 'bg-amber-950/40 border-amber-500/40 hover:bg-amber-950/60', border: 'border-amber-500/30', text: 'text-amber-300', icon: 'text-amber-400', Icon: CalendarClock }
+                                  : n.urgency === 'Medium'
+                                  ? { box: 'bg-teal-950/40 border-teal-500/40 hover:bg-teal-950/60', border: 'border-teal-500/30', text: 'text-teal-300', icon: 'text-teal-400', Icon: Scale }
+                                  : { box: 'bg-slate-950/60 border-slate-800 hover:border-slate-700', border: 'border-slate-800', text: 'text-indigo-300', icon: 'text-indigo-400', Icon: BellRing };
+                              const Icon = urgencyStyle.Icon;
+
+                              return (
+                                <div key={n.id} className={`p-2.5 rounded-lg border transition-colors ${urgencyStyle.box}`}>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-start space-x-2 min-w-0">
+                                      <Icon className={`w-4 h-4 ${urgencyStyle.icon} mt-0.5 shrink-0`} />
+                                      <div className="min-w-0">
+                                        <div className="font-semibold text-white flex items-center gap-1.5">
+                                          {n.countryFlag && <span className="shrink-0">{n.countryFlag}</span>}
+                                          <span className="truncate">{n.title}</span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-300 mt-0.5 line-clamp-2">{n.summary}</p>
+                                        <div className="text-[10px] text-slate-500 mt-1 font-mono">
+                                          {n.regulationCode} · {n.type}
+                                          {typeof n.daysRemaining === 'number' && n.daysRemaining >= 0
+                                            ? ` · ${n.daysRemaining} days`
+                                            : ''}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {/* Per-notification dismiss (X) */}
+                                    <button
+                                      type="button"
+                                      title="Dismiss this alert"
+                                      aria-label="Dismiss notification"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDismissNotification?.(n.id);
+                                      }}
+                                      className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800/80 shrink-0 cursor-pointer transition-colors"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className={`mt-2 pt-2 border-t ${urgencyStyle.border} flex items-center justify-end`}>
+                                    {/* Internal navigation only — no external "Official Source"
+                                        link here; View Regulation opens the in-app regulation. */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        onViewNotificationRegulation?.(n.regulationId);
+                                        setIsBellOpen(false);
+                                      }}
+                                      className={`text-[11px] font-bold ${urgencyStyle.text} hover:text-white flex items-center space-x-1 cursor-pointer`}
+                                    >
+                                      <span>View Regulation</span>
+                                      <ArrowRight className="w-3 h-3" />
+                                    </button>
                                   </div>
                                 </div>
-                              </div>
-                              {isCurrentUserAdmin && (
-                                <div className="mt-2 pt-2 border-t border-indigo-500/30 flex justify-end">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      handleSelectTab('admin');
-                                      setIsBellOpen(false);
-                                    }}
-                                    className="text-[11px] font-bold text-indigo-300 hover:text-white flex items-center space-x-1 cursor-pointer"
-                                  >
-                                    <span>Review in Link Integrity</span>
-                                    <ArrowRight className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Unverified Links Audit */}
-                            <div className="p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 hover:bg-amber-950/60 transition-colors">
-                              <div className="flex items-start space-x-2">
-                                <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-                                <div>
-                                  <div className="font-semibold text-white">Statutory Link Integrity Audit</div>
-                                  <p className="text-[11px] text-slate-300 mt-0.5">
-                                    3 regulations require official link updates or secondary PDF gazette confirmation.
-                                  </p>
-                                </div>
-                              </div>
-                              {isCurrentUserAdmin && (
-                                <div className="mt-2 pt-2 border-t border-amber-500/30 flex justify-end">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      handleSelectTab('admin');
-                                      setIsBellOpen(false);
-                                    }}
-                                    className="text-[11px] font-bold text-amber-300 hover:text-white flex items-center space-x-1 cursor-pointer"
-                                  >
-                                    <span>Audit Regulatory Links</span>
-                                    <ArrowRight className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Automated Crawler Run */}
-                            <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 hover:border-slate-700 transition-colors">
-                              <div className="flex items-start space-x-2">
-                                <RefreshCw className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
-                                <div>
-                                  <div className="font-semibold text-white">Weekly Scraper Daemon</div>
-                                  <p className="text-[11px] text-slate-400 mt-0.5">
-                                    Scheduled crawler crawls 51 official portals across 24 MENAT jurisdictions. Probes every 12h.
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="mt-2 pt-2 border-t border-slate-800 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleSelectTab('sources');
-                                    setIsBellOpen(false);
-                                  }}
-                                  className="text-[11px] font-bold text-emerald-400 hover:underline flex items-center space-x-1 cursor-pointer"
-                                >
-                                  <span>View Tracked Sources</span>
-                                  <ArrowRight className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                          // NORMAL USER NOTIFICATIONS
-                          <>
-                            {/* SDAIA Cross-Border SCCs */}
-                            <div className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-500/40 hover:bg-rose-950/60 transition-colors">
-                              <div className="flex items-start space-x-2">
-                                <ShieldAlert className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
-                                <div>
-                                  <div className="font-semibold text-white">SDAIA Cross-Border SCCs Filing Due</div>
-                                  <p className="text-[11px] text-slate-300 mt-0.5">
-                                    Mandatory standard contractual clauses registration cycle in effect. Review requirements and submit documentation.
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="mt-2 pt-2 border-t border-rose-500/30 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleSelectTab('regulations');
-                                    setIsBellOpen(false);
-                                  }}
-                                  className="text-[11px] font-bold text-rose-300 hover:text-white flex items-center space-x-1 cursor-pointer"
-                                >
-                                  <span>View Requirement</span>
-                                  <ArrowRight className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Qatar NCF v2.0 */}
-                            <div className="p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 hover:bg-amber-950/60 transition-colors">
-                              <div className="flex items-start space-x-2">
-                                <CalendarClock className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-                                <div>
-                                  <div className="font-semibold text-white">Qatar NCF v2.0 Critical Infrastructure</div>
-                                  <p className="text-[11px] text-slate-300 mt-0.5">
-                                    Mandatory compliance dossier submission to NCSA portal due Oct 31, 2026.
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="mt-2 pt-2 border-t border-amber-500/30 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleSelectTab('regulations');
-                                    setIsBellOpen(false);
-                                  }}
-                                  className="text-[11px] font-bold text-amber-300 hover:text-white flex items-center space-x-1 cursor-pointer"
-                                >
-                                  <span>View Regulation</span>
-                                  <ArrowRight className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* CBUAE Cyber Risk Management Framework */}
-                            <div className="p-2.5 rounded-lg bg-teal-950/40 border border-teal-500/40 hover:bg-teal-950/60 transition-colors">
-                              <div className="flex items-start space-x-2">
-                                <Scale className="w-4 h-4 text-teal-400 mt-0.5 shrink-0" />
-                                <div>
-                                  <div className="font-semibold text-white">CBUAE Cyber Risk Annual Attestation</div>
-                                  <p className="text-[11px] text-slate-300 mt-0.5">
-                                    Annual board sign-off and third-party vendor cyber risk assessment due.
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="mt-2 pt-2 border-t border-teal-500/30 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleSelectTab('regulations');
-                                    setIsBellOpen(false);
-                                  }}
-                                  className="text-[11px] font-bold text-teal-300 hover:text-white flex items-center space-x-1 cursor-pointer"
-                                >
-                                  <span>View Framework</span>
-                                  <ArrowRight className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Watchlist Trackers */}
-                            <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 hover:border-slate-700 transition-colors">
-                              <div className="flex items-start space-x-2">
-                                <BellRing className="w-4 h-4 text-indigo-400 mt-0.5 shrink-0" />
-                                <div>
-                                  <div className="font-semibold text-white">Watchlist Trackers ({watchlistCount} Pinned)</div>
-                                  <p className="text-[11px] text-slate-400 mt-0.5">
-                                    Real-time tracking for your pinned sovereign regulations.
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="mt-2 pt-2 border-t border-slate-800 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleSelectTab('watchlist');
-                                    setIsBellOpen(false);
-                                  }}
-                                  className="text-[11px] font-bold text-indigo-300 hover:text-white flex items-center space-x-1 cursor-pointer"
-                                >
-                                  <span>Open Watchlist</span>
-                                  <ArrowRight className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
+                              );
+                            })}
                           </>
                         )}
                       </div>
@@ -840,13 +892,35 @@ export const Navbar: React.FC<NavbarProps> = ({
                         >
                           {isCurrentUserAdmin ? 'Open Admin Console' : 'View Watchlist Trackers'}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsBellOpen(false)}
-                          className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
-                        >
-                          Dismiss
-                        </button>
+                        {isCurrentUserAdmin && adminVisibleReminderCount > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              dismissAllAdminReminders(['admin-link-queue', 'admin-link-audit', 'admin-scraper']);
+                            }}
+                            className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+                          >
+                            Dismiss all
+                          </button>
+                        ) : !isCurrentUserAdmin && notifications.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onDismissAllNotifications?.();
+                            }}
+                            className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+                          >
+                            Dismiss all
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setIsBellOpen(false)}
+                            className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+                          >
+                            Close
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -863,8 +937,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   disabled={isScraping}
                   title={
                     !canTriggerScraper
-                      ? 'Scraper triggering restricted to Compliance Officers & Admins'
-                      : `Weekly Automated Scraper Active. Last Scraped: ${
+                      ? 'Source syncing restricted to Compliance Officers & Admins'
+                      : `Crawl the tracked official portals & gazettes for NEW regulatory updates (this does not verify link reachability — use Admin Console → Link Integrity → Verify Links for that). Last synced: ${
                           scraperStatus?.lastRegulationsScrapeTime
                             ? new Date(scraperStatus.lastRegulationsScrapeTime).toLocaleDateString(undefined, {
                                 month: 'short',
@@ -873,7 +947,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 minute: '2-digit',
                               })
                             : 'Weekly cycle active'
-                        }. Click to trigger on-demand sync.`
+                        }. Click to sync sources now.`
                   }
                   className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer ${
                     !canTriggerScraper
@@ -891,7 +965,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     />
                   )}
                   <span className="hidden sm:inline">
-                    {isScraping ? 'Syncing...' : canTriggerScraper ? 'Sync' : 'Locked'}
+                    {isScraping ? 'Syncing Sources...' : canTriggerScraper ? 'Sync Sources' : 'Locked'}
                   </span>
                 </button>
 

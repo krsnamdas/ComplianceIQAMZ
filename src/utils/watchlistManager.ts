@@ -14,42 +14,18 @@ const PINS_STORAGE_KEY = 'menat_watchlist_pins_v2';
 const NOTIFICATIONS_STORAGE_KEY = 'menat_watchlist_notifications_v2';
 const PREFERENCES_STORAGE_KEY = 'menat_watchlist_preferences_v2';
 
-// Benchmark default initial regulations pinned on first visit
-export const DEFAULT_WATCHLIST_PINS: WatchlistPin[] = [
-  {
-    regulationId: 'ksa-ecc-1',
-    pinnedAt: '2026-09-01T08:00:00Z',
-    priority: 'Critical',
-    notes: 'Primary national cybersecurity baseline for Saudi entities. Monitor NCA ECC-2:2024 overhaul and ICS specifications.',
-    tags: ['Cyber-Baseline', 'CISO-Priority', 'Q4-Audit'],
-    notifyOnAmendments: true,
-    notifyOnConsultations: true,
-    notifyOnDeadlines: true,
-    assignedTo: 'Lead Security Architect',
-  },
-  {
-    regulationId: 'uae-desc-isr-1',
-    pinnedAt: '2026-09-05T10:30:00Z',
-    priority: 'High',
-    notes: 'Dubai Information Security Regulation (ISR:2023). Mandatory compliance audit window approaching.',
-    tags: ['Dubai-Gov', 'Cloud-Security'],
-    notifyOnAmendments: true,
-    notifyOnConsultations: true,
-    notifyOnDeadlines: true,
-    assignedTo: 'Compliance Officer',
-  },
-  {
-    regulationId: 'ksa-pdpl-1',
-    pinnedAt: '2026-09-10T14:15:00Z',
-    priority: 'Critical',
-    notes: 'Saudi Personal Data Protection Law (PDPL). Full enforcement active; track cross-border SCC clauses.',
-    tags: ['Privacy', 'Legal-DPO', 'Cross-Border'],
-    notifyOnAmendments: true,
-    notifyOnConsultations: true,
-    notifyOnDeadlines: true,
-    assignedTo: 'Data Protection Officer',
-  },
-];
+/**
+ * Watchlist pins are PER-USER. Each account keeps its own pinned regulations,
+ * so what one user pins is never visible to another. Pins are keyed in
+ * localStorage by the logged-in user's id. Users with no pins start empty
+ * (no default/seed pins) — the UI shows a "no regulations pinned yet" state.
+ */
+function pinsStorageKey(userId?: string | null): string {
+  return userId ? `${PINS_STORAGE_KEY}::${userId}` : `${PINS_STORAGE_KEY}::guest`;
+}
+
+// New users (and guests) begin with an empty watchlist.
+export const DEFAULT_WATCHLIST_PINS: WatchlistPin[] = [];
 
 export const DEFAULT_WATCHLIST_PREFERENCES: WatchlistPreferences = {
   emailAlertSimulation: true,
@@ -58,29 +34,24 @@ export const DEFAULT_WATCHLIST_PREFERENCES: WatchlistPreferences = {
   autoPinOnExport: false,
 };
 
-// Load saved pins from localStorage
-export function loadWatchlistPins(): WatchlistPin[] {
-  if (typeof window === 'undefined') return DEFAULT_WATCHLIST_PINS;
+// Load the current user's saved pins from localStorage (empty if none).
+export function loadWatchlistPins(userId?: string | null): WatchlistPin[] {
+  if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(PINS_STORAGE_KEY);
-    if (!raw) {
-      // First visit: save and return defaults
-      localStorage.setItem(PINS_STORAGE_KEY, JSON.stringify(DEFAULT_WATCHLIST_PINS));
-      return DEFAULT_WATCHLIST_PINS;
-    }
+    const raw = localStorage.getItem(pinsStorageKey(userId));
+    if (!raw) return []; // no pins yet for this user -> empty watchlist
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-    return DEFAULT_WATCHLIST_PINS;
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return DEFAULT_WATCHLIST_PINS;
+    return [];
   }
 }
 
-// Save pins to localStorage
-export function saveWatchlistPins(pins: WatchlistPin[]): void {
+// Save the current user's pins to localStorage (scoped by user id).
+export function saveWatchlistPins(pins: WatchlistPin[], userId?: string | null): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(PINS_STORAGE_KEY, JSON.stringify(pins));
+    localStorage.setItem(pinsStorageKey(userId), JSON.stringify(pins));
   } catch (err) {
     console.error('Failed to save watchlist pins:', err);
   }
@@ -167,12 +138,32 @@ export function generateSpecializedNotifications(
   // 1. Cross-reference with (file-backed) Timeline Events for Pinned Regulations
   timelineEvents.forEach((evt) => {
     // Check if this timeline event corresponds to any pinned regulation
-    const matchedReg = pinnedRegulations.find((r) => {
-      if (evt.regulationId && (evt.regulationId === r.id || evt.regulationId === r.code)) return true;
-      if (evt.regulationCode && r.code.toLowerCase().includes(evt.regulationCode.toLowerCase().replace(/v\d+.*/, '').trim())) return true;
-      if (r.countryId === evt.countryId && r.authorityShort.toLowerCase() === evt.authorityShort.toLowerCase()) return true;
-      return false;
-    });
+    // Match precedence matters: prefer an EXACT regulation id/code match so a
+    // specific event (e.g. OTCC-1:2022) links to the right regulation. Only
+    // fall back to the loose "same country + same authority" heuristic when the
+    // event carries NO regulation identifier at all — otherwise an OTCC event
+    // would wrongly attach to the first NCA regulation found (e.g. ECC).
+    const hasSpecificRef = Boolean(evt.regulationId || evt.regulationCode);
+    const normalizeCode = (c: string) => c.toLowerCase().replace(/v\d+.*/, '').trim();
+
+    const matchedReg =
+      // 1) Exact id or code match on the event's own identifier
+      pinnedRegulations.find(
+        (r) =>
+          (evt.regulationId && (evt.regulationId === r.id || evt.regulationId === r.code)) ||
+          (evt.regulationCode &&
+            (normalizeCode(r.code) === normalizeCode(evt.regulationCode) ||
+              normalizeCode(r.code).includes(normalizeCode(evt.regulationCode)) ||
+              normalizeCode(evt.regulationCode).includes(normalizeCode(r.code))))
+      ) ||
+      // 2) Loose country + authority fallback ONLY for events with no specific ref
+      (!hasSpecificRef
+        ? pinnedRegulations.find(
+            (r) =>
+              r.countryId === evt.countryId &&
+              r.authorityShort.toLowerCase() === evt.authorityShort.toLowerCase()
+          )
+        : undefined);
 
     if (matchedReg) {
       const pinConfig = pinMap.get(matchedReg.id);
@@ -210,15 +201,24 @@ export function generateSpecializedNotifications(
 
   // 2. Cross-reference with Regulatory Updates from Scraper & Authorities
   updates.forEach((upd) => {
-    const matchedReg = pinnedRegulations.find((r) => {
-      // Direct country match and related authority
-      if (r.countryId === upd.countryId) {
-        if (upd.authority.toLowerCase().includes(r.authorityShort.toLowerCase())) return true;
-        if (upd.title.toLowerCase().includes(r.code.toLowerCase())) return true;
-        if (upd.category === r.category) return true;
-      }
-      return false;
-    });
+    // Prefer a specific match (update title explicitly names the regulation
+    // code) so a same-country/same-authority update doesn't attach to the wrong
+    // regulation. Only fall back to the broad authority/category heuristics if
+    // no specific code match exists among the pinned regulations.
+    const matchedReg =
+      pinnedRegulations.find(
+        (r) =>
+          r.countryId === upd.countryId &&
+          r.code &&
+          upd.title.toLowerCase().includes(r.code.toLowerCase())
+      ) ||
+      pinnedRegulations.find((r) => {
+        if (r.countryId === upd.countryId) {
+          if (upd.authority.toLowerCase().includes(r.authorityShort.toLowerCase())) return true;
+          if (upd.category === r.category) return true;
+        }
+        return false;
+      });
 
     if (matchedReg) {
       let notifType: WatchlistNotification['type'] = 'Statutory Amendment';

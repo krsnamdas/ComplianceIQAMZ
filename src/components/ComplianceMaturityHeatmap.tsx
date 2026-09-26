@@ -244,7 +244,7 @@ export const ComplianceMaturityHeatmap: React.FC<ComplianceMaturityHeatmapProps>
       .append('text')
       .attr('text-anchor', rotateHeaders ? 'start' : 'middle')
       .attr('transform', rotateHeaders ? 'rotate(-40)' : null)
-      .attr('fill', '#94a3b8')
+      .attr('fill', 'var(--heatmap-axis-header, #94a3b8)')
       .attr('font-size', rotateHeaders ? '11px' : '12px')
       .attr('font-weight', '600')
       .text((d) => d.shortName);
@@ -263,7 +263,7 @@ export const ComplianceMaturityHeatmap: React.FC<ComplianceMaturityHeatmapProps>
       .append('text')
       .attr('text-anchor', 'end')
       .attr('dominant-baseline', 'central')
-      .attr('fill', (d) => (selectedCell?.countryId === d.countryId ? '#38bdf8' : '#e2e8f0'))
+      .attr('fill', (d) => (selectedCell?.countryId === d.countryId ? '#38bdf8' : 'var(--heatmap-axis-label, #e2e8f0)'))
       .attr('font-size', '12px')
       .attr('font-weight', (d) => (selectedCell?.countryId === d.countryId ? '700' : '500'))
       .text((d) => `${d.countryFlag}  ${d.countryName.length > 20 ? d.countryName.slice(0, 19) + '…' : d.countryName}`);
