@@ -26,8 +26,36 @@ const __dirname = path.dirname(__filename);
 
 export const ACTIVE_REGION = (process.env.REGION || 'menat').toLowerCase();
 
-// data/regions/<region>/ resolved relative to project root (two levels up from src/data)
-const REGIONS_ROOT = path.resolve(__dirname, '..', '..', 'data', 'regions');
+/**
+ * Resolve the `data/regions` root robustly across all runtime contexts:
+ *   1. Explicit `DATA_DIR` env var  — preferred for containers/AWS (points at a
+ *      mounted volume so admin edits persist across restarts).
+ *   2. Source-relative path         — works in dev via `tsx` (this file lives at
+ *      src/data/, so ../../data/regions is the project root).
+ *   3. `process.cwd()/data/regions` — works for the bundled prod server
+ *      (dist/server.mjs), which runs from the app root where `data/` is copied.
+ * The first path that actually exists on disk wins; otherwise we fall back to
+ * the cwd-based path (and the loader's in-code fallback covers a missing file).
+ */
+function resolveRegionsRoot(): string {
+  const candidates = [
+    process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR, 'regions') : null,
+    path.resolve(__dirname, '..', '..', 'data', 'regions'),
+    path.resolve(process.cwd(), 'data', 'regions'),
+  ].filter(Boolean) as string[];
+
+  for (const dir of candidates) {
+    try {
+      if (fs.existsSync(dir)) return dir;
+    } catch {
+      // ignore and try next
+    }
+  }
+  // Default to the cwd-based location (created on first write if needed).
+  return path.resolve(process.cwd(), 'data', 'regions');
+}
+
+const REGIONS_ROOT = resolveRegionsRoot();
 
 export function regionDir(region: string = ACTIVE_REGION): string {
   return path.join(REGIONS_ROOT, region);
