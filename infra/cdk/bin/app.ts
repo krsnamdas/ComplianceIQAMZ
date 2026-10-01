@@ -32,6 +32,8 @@ new ComplianceIqStack(app, `ComplianceIQ-${envName}`, {
   // Task sizing (single instance, no autoscaling in this phase)
   cpu: Number(app.node.tryGetContext('cpu') || 512),
   memoryMiB: Number(app.node.tryGetContext('memoryMiB') || 1024),
+  // ACM cert ARN for the HTTPS listener (self-signed import for non-prod).
+  certificateArn: app.node.tryGetContext('certificateArn') || process.env.CERT_ARN || '',
   tags: {
     Project: 'ComplianceIQ',
     Environment: envName,
