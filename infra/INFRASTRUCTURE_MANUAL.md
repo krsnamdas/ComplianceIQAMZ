@@ -454,3 +454,77 @@ In brief, planned/optional improvements:
 - **VPC endpoints** (drop NAT), **autoscaling**, **CI/CD**, **tighter IAM**
 
 See that document for *what specifically changes* in the current implementation to enable each.
+
+---
+
+## 15. v3.0 Infrastructure Additions (2026-10-07)
+
+This section records the infrastructure changes added in the v3.0 release. They are additive — the topology in §3 still holds, with the additions below.
+
+### 15.1 New: private documents + audit S3 bucket
+
+A new **private S3 bucket** `complianceiq-nonprod-documents-192425633190` was added to the CDK application stack (`infra/cdk/lib/complianceiq-stack.ts`):
+
+- **Encryption:** SSE-S3 (AES-256) at rest.
+- **Public access:** Block Public Access = ON (all four settings).
+- **Transport:** TLS-only (bucket policy denies non-HTTPS requests, `aws:SecureTransport=false`).
+- **Versioning:** ON (recoverable overwrites/deletes).
+- **Removal policy:** `RETAIN` (documents survive stack deletion; delete manually if decommissioning).
+- **Contents:** uploaded regulation documents under `<region>/regulations/<regulationId>/…` and the audit log under `<region>/audit-logs/audit-log.jsonl`.
+- **Access:** the **ECS task IAM role** is granted `grantReadWrite` on the bucket (covers Get/Put/Delete/List and the `audit-logs/` prefix). Reads/writes are proxied by the app — the bucket is never public.
+- **Wiring:** the bucket name is passed to the container as the `DOCUMENTS_BUCKET` environment variable; the app's `documentStore.ts` / `auditStore.ts` use it. If unset (local dev) the app falls back to local disk.
+
+Updated topology (addition to the PRIVATE/task tier):
+
+```
+   Task Role ──► S3 (complianceiq-nonprod-documents-<account>)   [NEW]
+        • PutObject/GetObject/DeleteObject/ListBucket (private, SSE)
+        • documents:  <region>/regulations/<id>/<docId>.<ext>
+        • audit log:  <region>/audit-logs/audit-log.jsonl
+   env: + DOCUMENTS_BUCKET=complianceiq-nonprod-documents-<account>   [NEW]
+```
+
+### 15.2 Changed: ALB Cognito session timeout = 24h
+
+The HTTPS listener's `authenticate-cognito` default action now sets **`SessionTimeout = 86400` seconds (24h)**. Previously it used the ALB default (7 days). The ALB now forces Cognito re-authentication (with MFA) at least once per day.
+
+Generated CloudFormation (`AWS::ElasticLoadBalancingV2::Listener` → `DefaultActions[0].AuthenticateCognitoConfig`):
+
+```yaml
+AuthenticateCognitoConfig:
+  SessionTimeout: "86400"      # 24 hours
+  UserPoolArn: !GetAtt UserPool.Arn
+  UserPoolClientId: !Ref UserPoolAlbClient
+  UserPoolDomain: !Ref UserPoolDomain
+Type: authenticate-cognito
+```
+
+### 15.3 Changed: new runtime data on EFS
+
+The EFS data volume (`/app/data`, `data/regions/<REGION>/`) now also holds the v3.0 server-authoritative state, seeded on first run and git-ignored:
+`users.json` (bcrypt hashes), `link-suggestions.json`, `regulation-suggestions.json`, `countries.json`, `feature-flags.json`, `broadcast.json`. These are backed up with the rest of EFS via AWS Backup. The audit log and documents live in S3 (§15.1), not EFS.
+
+### 15.4 Dependency
+
+**bcryptjs** (pure-JavaScript bcrypt) was added to the application dependencies. It requires no native compilation, so the `node:20-alpine` multi-stage image builds unchanged.
+
+### 15.5 Deploy procedure (unchanged shape)
+
+The v3.0 changes deploy with the same flow as before:
+
+```bash
+# 1. infra (creates the S3 bucket + 24h Cognito timeout)
+cd infra/cdk && npm install && npm run build
+npx cdk deploy -c envName=nonprod -c imageUri=$IMAGE_URI \
+  -c internalDomainName=complianceiq.internal -c bedrockModelId=amazon.nova-pro-v1:0 \
+  -c certificateArn=<ACM-ARN>
+cd ../..
+# 2. image (installs bcryptjs in-container) + 3. roll the service
+finch build --platform linux/amd64 -t $IMAGE_URI . && finch push $IMAGE_URI
+aws ecs update-service --cluster <cluster> --service <service> --force-new-deployment --region us-east-1
+```
+
+### 15.6 Other editions
+
+- **AWS External** (`ComplianceIQ-AWS-External`): identical infra to this non-prod stack (S3 bucket, Cognito 24h, EFS data).
+- **Gemini** (`ComplianceIQ-Gemini`): documents + audit log use **Cloudflare R2** (S3-compatible) via `R2_ENDPOINT` / `R2_BUCKET` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`; region/app data uses the deployment's local disk/volume. No AWS S3 or EFS.

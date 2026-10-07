@@ -552,3 +552,113 @@ When ready to deploy your application to AWS:
 ### Verification Summary
 * **Task 1**: Complete implementation plan, technical architecture, and dual user/admin operational manuals documented above.
 * **Task 2**: End-to-end guidance for porting to Kiro IDE, configuring AWS IAM, swapping the AI engine to AWS Bedrock (Claude 3.5 Sonnet), setting up `.kiro/rules.md`, and continuing development with Kiro AI Copilot.
+
+---
+
+# 6. v3.0 Addendum — Documents, Multi-Admin Sync, Hardened Auth & Editions
+
+**Version:** 3.0 · **Date:** 2026-10-07 · This addendum supersedes the §2.1 topology diagram above and documents the subsystems added since v2.x. See also `ComplianceIQ_System_Architecture_Diagram_v3.0.md` for the Mermaid rendering.
+
+## 6.1 Updated architectural topology
+
+```
+                 Internet (public testers)
+                          |
+                          v
+   +--------------------------------------------------------------+
+   |  Application Load Balancer (public, HTTPS :443)              |   AWS editions
+   |  authenticate-cognito  ->  Cognito User Pool (login + MFA)   |   only
+   |  SessionTimeout = 86400s (24h)  ->  forward to app           |
+   +--------------------------------+-----------------------------+
+                                    v
+   +--------------------------------------------------------------+
+   |                 CLIENT BROWSER — React 19 SPA                |
+   |  App.tsx (effectiveFeatureFlags gating)                      |
+   |  RegulationCard + RegulationDocuments (download all/upload)  |
+   |  Account menu: login / logout / change-password             |
+   |  AdminContext = server-authoritative + refreshAdminData()   |
+   +--------------------------------+-----------------------------+
+                                    | HTTP / REST
+                                    v
+   +--------------------------------------------------------------+
+   |                 APPLICATION SERVER — Express                 |
+   |  /auth/* (bcrypt)  /users/*  /documents/*  /audit-logs/*     |
+   |  /link-suggestions /regulation-suggestions /broadcast        |
+   |  /feature-flags /countries  /regulations /ai/* ...           |
+   |  userStore (bcrypt) · auditStore (CSV) · documentStore       |
+   |  regionLoader (atomic JSON)                                  |
+   +----------------+----------------------------+----------------+
+                    |                            |
+                    v                            v
+   +-------------------------------+   +----------------------------+
+   |  AI ENGINE                    |   |  PRIVATE OBJECT STORAGE    |
+   |  AWS Bedrock (Nova/Claude)    |   |  encrypted at rest (SSE)   |
+   |  OR Google Gemini (Gemini ed) |   |  S3 (AWS) / R2 (Gemini)    |
+   |  Tavily web search            |   |  documents + audit-logs/   |
+   +-------------------------------+   +----------------------------+
+                    |
+                    v
+   +--------------------------------------------------------------+
+   |  REGION DATA — data/regions/<REGION>/  (EFS on AWS / disk)   |
+   |  regulations · users(bcrypt) · suggestions · countries ·     |
+   |  feature-flags · broadcast · timeline · roadmap · maturity   |
+   +--------------------------------------------------------------+
+```
+
+## 6.2 Authentication & user model (server-side, bcrypt)
+
+- **Login** is verified server-side at `POST /api/auth/login` using **bcrypt** (cost 12). The password hash is stored only in `users.json` and never transmitted to the client. On success the server returns the public user profile (no hash).
+- **User MACDs** go through server endpoints: `POST /api/users` (create, hashes the initial password), `PUT /api/users/:id` (non-secret fields only), `DELETE /api/users/:id`, `POST /api/users/:id/reset-password` (admin reset), `POST /api/auth/change-password` (self-service, verifies current password).
+- The **admin console second-gate** password is retained and separate from the per-user login.
+- **No plaintext** passwords are stored, displayed, or logged anywhere. The UI shows "bcrypt-hashed" in place of any password field.
+- The user roster is **seeded on first run** (`initUsers()`) with the default accounts, so a fresh deployment is immediately usable; thereafter the roster is admin-managed and persists on the data volume.
+
+## 6.3 Server-authoritative data (no browser dependency)
+
+All admin-mutable domains are owned by the server (region JSON via `regionLoader`) and synchronized across every admin/device. `AdminContext` fetches them on load and via `refreshAdminData()` (admin-panel open + Refresh button); `localStorage` is only an offline cache and per-browser session state.
+
+| Domain | Endpoint(s) | File |
+|--------|-------------|------|
+| Users | `/api/users`, `/api/auth/*` | `users.json` |
+| Link suggestions | `GET/PUT /api/link-suggestions` | `link-suggestions.json` |
+| Field suggestions | `GET/PUT /api/regulation-suggestions` | `regulation-suggestions.json` |
+| Broadcast banner | `GET/PUT /api/broadcast` | `broadcast.json` |
+| Feature flags | `GET/PUT /api/feature-flags` | `feature-flags.json` |
+| Countries | `GET/POST/PUT/DELETE /api/countries` | `countries.json` |
+| Regulations/timeline/etc. | existing `/api/*` | respective JSON |
+
+This closes all prior "split-brain" gaps where a change by one admin was invisible to another. The only intentionally per-browser state is the login session itself.
+
+## 6.4 Feature-toggle semantics
+
+Gating uses an admin-aware derived object, **`effectiveFeatureFlags`**: for admins every flag reads enabled (admins always have full access); for normal users the real flags apply. The admin **Feature Toggles** tab edits the true `featureFlags` state (file-backed, shared). This means disabling a feature restricts normal users while leaving admins unaffected.
+
+## 6.5 Document management
+
+- Endpoints: `GET /api/regulations/:id/documents` (list, all users), `POST /api/regulations/:id/documents` (upload, admin), `GET /api/documents/:id/download` (download, all users), `DELETE /api/documents/:id` (admin).
+- Storage (`documentStore.ts`): **S3** on AWS editions (`DOCUMENTS_BUCKET`), **Cloudflare R2** on the Gemini edition (`R2_*` vars, S3-compatible API), **local disk** fallback in dev. Bucket is private, encrypted at rest, Block Public Access on; downloads are proxied by the app.
+- Limits: 5 MB/file, 10 files/regulation; types pdf/doc/docx/xls/xlsx/csv/txt/ppt/pptx.
+
+## 6.6 Audit log (encrypted object storage)
+
+- `auditStore.ts` appends each event to `<region>/audit-logs/audit-log.jsonl` in the private bucket (encrypted at rest).
+- `POST /api/audit-logs` (fire-and-forget append), `GET /api/audit-logs` (shared on-screen view), `GET /api/audit-logs/download` (readable CSV).
+- The admin Audit Log tab reads the shared server log (all admins' actions) and offers a CSV download + Refresh.
+
+## 6.7 Infrastructure (CDK) changes
+
+- New **private S3 documents bucket** (`complianceiq-<env>-documents-<account>`): SSE (AES-256), Block Public Access on, TLS-only (deny non-HTTPS), versioned, `RETAIN` on stack delete. Task IAM role granted read/write (covers the `audit-logs/` prefix too). `DOCUMENTS_BUCKET` env var passed to the container.
+- **ALB Cognito `SessionTimeout` = 24h** on the HTTPS listener's `authenticate-cognito` action (CloudFormation `AuthenticateCognitoConfig.SessionTimeout = "86400"`).
+- Dependency added: **bcryptjs** (pure-JS, no native build — safe in the Alpine container).
+
+## 6.8 Deployment editions
+
+| Aspect | AWS normal | AWS External | Gemini |
+|--------|-----------|--------------|--------|
+| AI | Bedrock | Bedrock | Google Gemini |
+| Doc/audit storage | S3 (SSE) | S3 (SSE) | Cloudflare R2 (SSE) |
+| Region/app data | EFS | EFS | deployment disk |
+| Edge auth | ALB+Cognito+MFA (24h) | ALB+Cognito+MFA (24h) | host-dependent |
+| Repo | `ComplianceIQAMZ` | `ComplianceIQ-AWS-External` | `ComplianceIQ-Gemini` |
+
+The shared `src/` application code, bcrypt auth, multi-admin sync, documents, audit, and feature-toggle behavior are identical across all three. Only the AI provider, object-storage backend, and infrastructure differ.
